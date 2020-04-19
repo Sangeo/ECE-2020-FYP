@@ -13,22 +13,27 @@
 // - Plot color signals and extract peak-to-peak time to find heart rate.
 // reference: https://docs.opencv.org/4.3.0/db/d28/tutorial_cascade_classifier.html
 
+
 #include "opencv2/objdetect.hpp"
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/videoio.hpp"
 #include "opencv2/core/matx.hpp"
 #include <iostream>
+#include <fstream>
+//#include "\Users\jerry\vcpkg\installed\x86-windows\include\matplotlibcpp.h"
 
 using namespace std;
 using namespace cv;
 
+void writeCSV(string filename, Mat m);
 void detectAndDisplay(Mat frame, int cSel);
 CascadeClassifier face_cascade;
 CascadeClassifier eyes_cascade;
 
 int main(int argc, const char** argv)
 {
+	
 	CommandLineParser parser(argc, argv,
 		"{help h||}"
 		"{face_cascade|data/haarcascades/haarcascade_frontalface_alt.xml|Path to face cascade.}"
@@ -82,8 +87,10 @@ int main(int argc, const char** argv)
 	}
 	return 0;
 }
+
 void detectAndDisplay(Mat frame, int cSel)
 {
+	ofstream outData;
 	// Declaration of variables
 	//-- converts video feed into grayscale, and then detecks edges.
 	Mat frame_gray;
@@ -95,6 +102,8 @@ void detectAndDisplay(Mat frame, int cSel)
 	face_cascade.detectMultiScale(frame_gray, faces);
 	//-- This is used for color separation for later
 	Mat zeroMatrix = Mat::zeros(Size(frame_clone.cols, frame_clone.rows), CV_8UC1);
+	Mat faceColor;
+	Mat faceROI;
 
 	for (size_t i = 0; i < faces.size(); i++)
 	{
@@ -102,25 +111,27 @@ void detectAndDisplay(Mat frame, int cSel)
 		Point topLC(faces[i].x, faces[i].y + faces[i].height);
 		Point botRC(faces[i].x + faces[i].width, faces[i].y);
 		rectangle(frame, topLC, botRC, Scalar(0, 0, 255), 1, LINE_4, 0);
-		Point innerTopLC(faces[i].x + faces[i].width / 4, faces[i].y + (faces[i].height * 4 / 5));
-		Point innerBotRC(faces[i].x + (faces[i].width * 4 / 5), faces[i].y + faces[i].height / 4);
+		Point innerTopLC(faces[i].x + (faces[i].width * 3 / 10), faces[i].y + faces[i].height / 20);
+		Point innerBotRC(faces[i].x + (faces[i].width * 7 / 10), faces[i].y + (faces[i].height * 1 / 5));
 		rectangle(frame, innerTopLC, innerBotRC, Scalar(255, 0, 0), 1, LINE_4, 0);
+		Rect myROI(innerTopLC, innerBotRC);
+		Rect fixedROI(100, 100, 500, 200);
 		// This will split the current frame (stored in frame_clone) into three different color channels
 		Mat splt[3];
-		cv::split(frame_clone, splt);
-		Mat colorImg; //This will be the output which stores the colorSeparate channel
+		cv::split(frame, splt);
+		Mat colorImg; //This will be the output which stores the color separated channels
 		vector<Mat> B;
 		B.push_back(splt[0]);
 		B.push_back(zeroMatrix);
 		B.push_back(zeroMatrix);
-		vector<Mat> R;
-		R.push_back(zeroMatrix);
-		R.push_back(splt[1]);
-		R.push_back(zeroMatrix);
 		vector<Mat> G;
 		G.push_back(zeroMatrix);
+		G.push_back(splt[1]);
 		G.push_back(zeroMatrix);
-		G.push_back(splt[2]);
+		vector<Mat> R;
+		R.push_back(zeroMatrix);
+		R.push_back(zeroMatrix);
+		R.push_back(splt[2]);
 		switch (cSel)
 		{
 		case 1: {
@@ -131,28 +142,37 @@ void detectAndDisplay(Mat frame, int cSel)
 		}
 		case 2: {
 			//showing red spectrum
-			cv::merge(R, colorImg);
-			imshow("Red", colorImg);
-			break;
-		}
-		case 3: {
-			//showing red spectrum
 			cv::merge(G, colorImg);
 			imshow("Green", colorImg);
 			break;
 		}
+		case 3: {
+			//showing red spectrum
+			cv::merge(R, colorImg);
+			imshow("Red", colorImg);
+			break;
+		}
 		default: break;
 		}
-		Mat faceROI = colorImg(faces[i]);
-		imshow("faceIMG", faceROI);
-		if (!faceROI.empty())
-		{
-
-		}
-
+		Mat cloneImg = colorImg.clone();
+		faceROI = cloneImg(myROI).clone();
+		
 	}
-	//-- Show what you got
+	//live plot of the frames
 	//flip(frame, frame, 1);
 	imshow("Capture - Face detection", frame);
+	if (!faceROI.empty()) {
+		imshow("face", faceROI);
+		vector<Mat> temp;
+		split(faceROI, temp);//resplits the channels (extracting the color green for default/testing cases)
+		writeCSV("output_file.csv", temp[1]);
+	}
 
+}
+
+void writeCSV(string filename, Mat m)
+{
+	ofstream myfile;
+	myfile.open(filename.c_str());
+	myfile << cv::format(m, cv::Formatter::FMT_CSV) << std::endl;
 }
