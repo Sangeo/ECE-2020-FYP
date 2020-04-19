@@ -27,13 +27,16 @@ using namespace std;
 using namespace cv;
 
 void writeCSV(string filename, Mat m);
-void detectAndDisplay(Mat frame, int cSel);
+void write_CSV(string filename, vector<double> arr, long msec);
+void detectAndDisplay(Mat frame, int cSel, long msec, long fnum);
+
 CascadeClassifier face_cascade;
 CascadeClassifier eyes_cascade;
+vector<double> OUTPUT_CSV_VAR;
 
 int main(int argc, const char** argv)
 {
-	
+
 	CommandLineParser parser(argc, argv,
 		"{help h||}"
 		"{face_cascade|data/haarcascades/haarcascade_frontalface_alt.xml|Path to face cascade.}"
@@ -60,35 +63,56 @@ int main(int argc, const char** argv)
 		cout << "--(!)Error loading eyes cascade\n";
 		return -1;
 	};
-	int camera_device = parser.get<int>("camera");
-	VideoCapture capture;
+	//int camera_device = parser.get<int>("camera");
+	VideoCapture capture(0);
 	//-- 2. Read the video stream
-	capture.open(camera_device);
+	capture.set(CAP_PROP_FRAME_WIDTH, 1920 / 2);
+	capture.set(CAP_PROP_FRAME_HEIGHT, 1080 / 2);
+	capture.set(CAP_PROP_FPS, 30);
+
 	if (!capture.isOpened())
 	{
 		cout << "--(!)Error opening video capture\n";
 		return -1;
 	}
 	Mat frame;
-
-	while (capture.read(frame))
+	long msecCounter = 0;
+	long frameNumber = 0;
+	
+	for (;;)
 	{
-		if (frame.empty())
+		if (capture.grab())
 		{
-			cout << "--(!) No captured frame -- Break!\n";
-			break;
+			msecCounter = (long) capture.get(CAP_PROP_POS_MSEC);
+			frameNumber = (long) capture.get(CAP_PROP_POS_FRAMES);
+			if (capture.retrieve(frame))
+			{
+				detectAndDisplay(frame, color_sel, msecCounter, frameNumber);
+			}
 		}
-		//-- 3. Apply the classifier to the frame
-		detectAndDisplay(frame, color_sel);
 		if (waitKey(5) == 27)
 		{
-			break; // escape
+			break; // if escape is pressed at any time 
 		}
 	}
+	//while (capture.read(frame))
+	//{
+	//	if (frame.empty())
+	//	{
+	//		cout << "--(!) No captured frame -- Break!\n";
+	//		break;
+	//	}
+	//	//-- 3. Apply the classifier to the frame
+	//	detectAndDisplay(frame, color_sel);
+	//	if (waitKey(5) == 27)
+	//	{
+	//		break; // escape
+	//	}
+	//}
 	return 0;
 }
 
-void detectAndDisplay(Mat frame, int cSel)
+void detectAndDisplay(Mat frame, int cSel, long msec, long fnum)
 {
 	ofstream outData;
 	// Declaration of variables
@@ -156,7 +180,7 @@ void detectAndDisplay(Mat frame, int cSel)
 		}
 		Mat cloneImg = colorImg.clone();
 		faceROI = cloneImg(myROI).clone();
-		
+
 	}
 	//live plot of the frames
 	//flip(frame, frame, 1);
@@ -165,7 +189,11 @@ void detectAndDisplay(Mat frame, int cSel)
 		imshow("face", faceROI);
 		vector<Mat> temp;
 		split(faceROI, temp);//resplits the channels (extracting the color green for default/testing cases)
-		writeCSV("output_file.csv", temp[1]);
+		Scalar runningAverage = mean(temp[1]);
+		double s = sum(runningAverage)[0];
+		OUTPUT_CSV_VAR.push_back(s);
+		//writeCSV("output_file.csv", temp[1]);
+		write_CSV("output_file2.csv", OUTPUT_CSV_VAR, fnum);
 	}
 
 }
@@ -175,4 +203,15 @@ void writeCSV(string filename, Mat m)
 	ofstream myfile;
 	myfile.open(filename.c_str());
 	myfile << cv::format(m, cv::Formatter::FMT_CSV) << std::endl;
+}
+
+void write_CSV(string filename, vector<double> arr, long fnum)
+{
+	ofstream myfile;
+	myfile.open(filename.c_str());
+	int vsize = arr.size();
+	for (int n = 0; n < vsize; n++)
+	{
+		myfile << fnum << ";" << arr[n] << endl;
+	}
 }
