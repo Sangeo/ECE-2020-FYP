@@ -40,7 +40,6 @@ int main(int argc, const char** argv)
 	CommandLineParser parser(argc, argv,
 		"{help h||}"
 		"{face_cascade|data/haarcascades/haarcascade_frontalface_alt.xml|Path to face cascade.}"
-		"{eyes_cascade|data/haarcascades/haarcascade_eye_tree_eyeglasses.xml|Path to eyes cascade.}"
 		"{camera|0|Camera device number.}");
 	parser.about("\nPress Esc to quit program\nThis program demonstrates signal decomposition by color in openCV with facial recognition in a video stream");
 	parser.printMessage();
@@ -54,15 +53,9 @@ int main(int argc, const char** argv)
 
 	//-- 1. Load the cascades
 	String face_cascade_name = samples::findFile(parser.get<String>("face_cascade"));
-	String eyes_cascade_name = samples::findFile(parser.get<String>("eyes_cascade"));
 	if (!face_cascade.load(face_cascade_name))
 	{
 		cout << "--(!)Error loading face cascade\n";
-		return -1;
-	};
-	if (!eyes_cascade.load(eyes_cascade_name))
-	{
-		cout << "--(!)Error loading eyes cascade\n";
 		return -1;
 	};
 
