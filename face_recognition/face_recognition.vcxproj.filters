@@ -21,6 +21,9 @@
     <ClCompile Include="face_recog_trial.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="frame_rate.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="Diphylleia Grayi.jpg">
