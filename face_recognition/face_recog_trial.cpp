@@ -79,10 +79,15 @@ int main(int argc, const char** argv)
 	Clock::time_point start = Clock::now();
 	for (;;)
 	{
+		Clock::time_point start2 = Clock::now();
 		if (capture.read(frame))
 		{
+			
 			detectAndDisplay(frame, color_sel);
 		}
+		Clock::time_point end2 = Clock::now();
+		milliseconds ms2 = chrono::duration_cast<milliseconds>(end2 - start2);
+		cout << "Inner loop runs each time for: " << ms2.count() << "ms\n" << endl;
 		if (waitKey(1) == 27)
 		{
 			break; // if escape is pressed at any time
