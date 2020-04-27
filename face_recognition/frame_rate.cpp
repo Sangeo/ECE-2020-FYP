@@ -5,14 +5,23 @@
 #include "opencv2/imgproc.hpp"
 #include "opencv2/videoio.hpp"
 #include <time.h>
+#include <chrono>
 
 using namespace cv;
 using namespace std;
+typedef chrono::high_resolution_clock Clock;
+typedef chrono::milliseconds milliseconds;
 
 int main(int argc, const char** argv)
 {
 	//start default camera
 	VideoCapture cap(0);
+	cap.set(CAP_PROP_FPS, 30);
+	double format = cap.get(CAP_PROP_FORMAT);
+	double mode = cap.get(CAP_PROP_MODE);
+	cout << "Video format is: " << format << "and capture mode is: " << mode << "\n" << endl;
+	cap.set(CAP_PROP_FRAME_WIDTH, 1920);
+	cap.set(CAP_PROP_FRAME_HEIGHT, 1080);
 	//check if camera has started
 	if (!cap.isOpened())
 	{
@@ -26,14 +35,13 @@ int main(int argc, const char** argv)
 
 	//define number of frames to capture
 	int numFrame = 0;
-	time_t start, end; //define time values 
+	Mat frame;
 	
-	time(&start);
+	Clock::time_point start = Clock::now();
 	for (;;)
 	{
-		Mat frame;
 		cap.read(frame);
-		double timestamp = cap.get(CAP_PROP_POS_MSEC);
+		
 		if (frame.empty())
 		{
 			cout << "frame is empty lmao" << endl;
@@ -41,17 +49,16 @@ int main(int argc, const char** argv)
 		else
 		{
 			imshow("frame", frame);
-			cout << "timestamp: " << timestamp << endl;
 			numFrame++;
 		}
 		if (waitKey(5) == 27) break;
 	}
-	time(&end);
+	Clock::time_point end = Clock::now();
 	// Time elapsed
-	double seconds = difftime(end, start);
-	cout << "Time taken : " << seconds << " seconds" << endl;
+	milliseconds ms = chrono::duration_cast<milliseconds>(end -start);
+	cout << "Time taken : " << ms.count() << "ms\n" << endl;
 	// Calculate frames per second
-	fps = numFrame / seconds;
+	fps = numFrame / (ms.count()/1000);
 	cout << "Estimated frames per second : " << fps << endl;
 
 

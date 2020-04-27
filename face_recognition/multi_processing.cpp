@@ -26,7 +26,6 @@
 using namespace std;
 using namespace cv;
 
-void writeCSV(string filename, Mat m); //legacy do not use
 void write_CSV(string filename, vector<double> arr, double fps);
 void detectAndDisplay(Mat frame, int cSel);
 
@@ -64,8 +63,8 @@ int main(int argc, const char** argv)
 	//-- 2. Read the video stream
 	VideoCapture capture(0); //inputs into the Mat frame as CV_8UC3 format (unsigned integer)
 	capture.set(CAP_PROP_FPS, 30);
-	capture.set(CAP_PROP_FRAME_WIDTH, 1920/3);
-	capture.set(CAP_PROP_FRAME_HEIGHT, 1080/3);
+	capture.set(CAP_PROP_FRAME_WIDTH, 1920 / 3);
+	capture.set(CAP_PROP_FRAME_HEIGHT, 1080 / 3);
 
 	// check that the camera is open
 	if (!capture.isOpened())
@@ -75,15 +74,17 @@ int main(int argc, const char** argv)
 	}
 	// this frame will store all information about the video captured by the camera
 	Mat frame;
+	vector<Mat> frame_queue;
 	// to find the time taken to do all calculations/capture frames
-	
+
 	Clock::time_point start = Clock::now();
 	for (;;)
 	{
-		
 		if (capture.read(frame))
 		{
-			detectAndDisplay(frame, color_sel);
+			frame_queue.push_back(frame);
+			detectAndDisplay(frame_queue.back(), color_sel);
+			frame_queue.pop_back();
 		}
 		
 		if (waitKey(1) == 27)
@@ -113,10 +114,10 @@ void detectAndDisplay(Mat frame, int cSel)
 	Mat frame_clone = frame.clone();
 	cvtColor(frame, frame_gray, COLOR_BGR2GRAY);
 	equalizeHist(frame_gray, frame_gray);
-	
+
 	//-- Detect faces
 	std::vector<Rect> faces;
-	face_cascade.detectMultiScale(frame_gray, faces);	
+	face_cascade.detectMultiScale(frame_gray, faces);
 
 	//-- This is used for color separation for later
 	Mat zeroMatrix = Mat::zeros(Size(frame_clone.cols, frame_clone.rows), CV_8UC1);
@@ -164,8 +165,8 @@ void detectAndDisplay(Mat frame, int cSel)
 	}
 	default: break;
 	}
-	
-	
+
+
 	// faceROI Detection
 	for (size_t i = 0; i < faces.size(); i++)
 	{
@@ -187,15 +188,8 @@ void detectAndDisplay(Mat frame, int cSel)
 			OUTPUT_CSV_VAR.push_back(s);
 		}
 	}
-	
-	imshow("Capture - Face detection", frame);
-}
 
-void writeCSV(string filename, Mat m) //legacy do not use
-{
-	ofstream myfile;
-	myfile.open(filename.c_str());
-	myfile << cv::format(m, cv::Formatter::FMT_CSV) << std::endl;
+	imshow("Capture - Face detection", frame);
 }
 
 void write_CSV(string filename, vector<double> arr, double fps)
