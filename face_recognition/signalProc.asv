@@ -13,4 +13,4 @@ xlabel('Seconds');
 ylabel('Color Intensity');
 
 %filtering the content
-%lowpass(ROI_ColorIntensity,1,1/30); 
+lowpass(R

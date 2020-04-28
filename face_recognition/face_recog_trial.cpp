@@ -21,7 +21,8 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
-//#include "\Users\jerry\vcpkg\installed\x86-windows\include\matplotlibcpp.h"
+#include <vector>
+#include <future>
 
 using namespace std;
 using namespace cv;
@@ -34,7 +35,6 @@ typedef chrono::high_resolution_clock Clock;
 typedef chrono::milliseconds milliseconds;
 
 CascadeClassifier face_cascade;
-CascadeClassifier eyes_cascade;
 vector<double> OUTPUT_CSV_VAR;
 
 int main(int argc, const char** argv)
@@ -76,16 +76,15 @@ int main(int argc, const char** argv)
 	// this frame will store all information about the video captured by the camera
 	Mat frame;
 	// to find the time taken to do all calculations/capture frames
-	
+
 	Clock::time_point start = Clock::now();
 	for (;;)
 	{
-		
 		if (capture.read(frame))
 		{
 			detectAndDisplay(frame, color_sel);
 		}
-		
+
 		if (waitKey(1) == 27)
 		{
 			break; // if escape is pressed at any time
@@ -107,16 +106,18 @@ int main(int argc, const char** argv)
 
 void detectAndDisplay(Mat frame, int cSel)
 {
-	// Declaration of variables
+	Mat frame_clone = frame.clone();
+	
 	//-- converts video feed into grayscale, and then detecks edges.
 	Mat frame_gray;
-	Mat frame_clone = frame.clone();
+
 	cvtColor(frame, frame_gray, COLOR_BGR2GRAY);
 	equalizeHist(frame_gray, frame_gray);
-	
+
 	//-- Detect faces
 	std::vector<Rect> faces;
-	face_cascade.detectMultiScale(frame_gray, faces);	
+	face_cascade.detectMultiScale(frame_gray, faces, 1.1);
+	
 
 	//-- This is used for color separation for later
 	Mat zeroMatrix = Mat::zeros(Size(frame_clone.cols, frame_clone.rows), CV_8UC1);
@@ -164,8 +165,8 @@ void detectAndDisplay(Mat frame, int cSel)
 	}
 	default: break;
 	}
-	
-	
+
+
 	// faceROI Detection
 	for (size_t i = 0; i < faces.size(); i++)
 	{
@@ -187,7 +188,7 @@ void detectAndDisplay(Mat frame, int cSel)
 			OUTPUT_CSV_VAR.push_back(s);
 		}
 	}
-	
+
 	imshow("Capture - Face detection", frame);
 }
 
