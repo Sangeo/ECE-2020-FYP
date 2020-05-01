@@ -65,8 +65,8 @@ int main(int argc, const char** argv)
 	//-- 2. Read the video stream
 	VideoCapture capture(0); //inputs into the Mat frame as CV_8UC3 format (unsigned integer)
 	capture.set(CAP_PROP_FPS, 30);
-	capture.set(CAP_PROP_FRAME_WIDTH, 1920);
-	capture.set(CAP_PROP_FRAME_HEIGHT, 1080);
+	capture.set(CAP_PROP_FRAME_WIDTH, 1920/2);
+	capture.set(CAP_PROP_FRAME_HEIGHT, 1080/2);
 
 	// check that the camera is open
 	if (!capture.isOpened())
@@ -78,7 +78,6 @@ int main(int argc, const char** argv)
 	Mat frame;
 	// to find the time taken to do all calculations/capture frames
 
-	/*Clock::time_point start = Clock::now();*/
 	for (;;)
 	{
 		if (capture.read(frame))
@@ -91,16 +90,8 @@ int main(int argc, const char** argv)
 			break; // if escape is pressed at any time
 		}
 	}
-	//Clock::time_point end = Clock::now();
-	//milliseconds ms = chrono::duration_cast<milliseconds>(end - start);
-	//cout << "ran for duration: " << ms.count() << "ms\n" << endl;
-	//long long duration = ms.count();
-	//long long n = OUTPUT_CSV_VAR.size();
-	//cout << "Number of frames captured: " << n << "\n" << endl;
-	//long long fps = n / (duration / 1000); // gives frames per second
-	//cout << "Frames per second: " << fps << "\n" << endl;
-	int fps = 30;
-	OUTPUT_CSV_VAR.erase(OUTPUT_CSV_VAR.begin(), OUTPUT_CSV_VAR.begin() + 150);
+	int fps = 30; //this is constant for now, will find a way to adjust fps dynamically
+	OUTPUT_CSV_VAR.erase(OUTPUT_CSV_VAR.begin(), OUTPUT_CSV_VAR.begin() + 150); //get rid of the first 150 frames from the recording
 	write_CSV("output_file2.csv", OUTPUT_CSV_VAR, fps);
 
 	capture.release();
@@ -112,7 +103,7 @@ void detectAndDisplay(Mat frame, int cSel)
 	Mat frameClone = frame.clone();
 	Mat procFrame; //frame used for face recognition
 	// resize the frame upon entry
-	const double scaleFactor = 1.0 / 9.0;
+	const double scaleFactor = 1.0 / 8;
 	cv::resize(frameClone, procFrame, cv::Size(), scaleFactor, scaleFactor);
 	// clone the frame for processing
 	Mat frame_gray;
@@ -127,12 +118,13 @@ void detectAndDisplay(Mat frame, int cSel)
 		numDetections.begin(),
 		std::max_element(numDetections.begin(), numDetections.end()));
 	Rect myROI;
+	Mat faceROI;
 	Rect originalFace;
 	// ensure that the frame is only processed when a face is obtained)
 	if (!faces.empty()) {
 
-		cv::Rect bestFace = faces[bestIndex]; //this contains the rectangle for the best face detected
-		cv::Rect originalFace = Rect(bestFace.tl() * (1 / scaleFactor), bestFace.br() * (1 / scaleFactor)); //rescaling back to normal size
+		Rect bestFace = faces[bestIndex]; //this contains the rectangle for the best face detected
+		Rect originalFace = Rect(bestFace.tl() * (1 / scaleFactor), bestFace.br() * (1 / scaleFactor)); //rescaling back to normal size
 		// this obtains the forehead region of the face (will adjust dynamically)
 		Point innerTopLC(originalFace.x + (originalFace.width * 3 / 10), originalFace.y + originalFace.height / 20);
 		Point innerBotRC(originalFace.x + (originalFace.width * 7 / 10), originalFace.y + (originalFace.height * 1 / 5));
@@ -143,16 +135,18 @@ void detectAndDisplay(Mat frame, int cSel)
 		Mat zeroMatrix = Mat::zeros(Size(frameClone.cols, frameClone.rows), CV_8UC1);
 
 		Mat colorImg = splitColor(frameClone, zeroMatrix, cSel);
-		Mat faceROI = colorImg(myROI).clone();
+		faceROI = colorImg(myROI).clone();
 
 		vector<Mat> temp;
 		split(faceROI, temp);//resplits the channels (extracting the color green for default/testing cases)
-		Scalar averageColor = mean(temp[cSel - 1]);
+		Scalar averageColor = mean(temp[cSel - 1]); //takes the average of the color along a selected spectrum B/R/G
 		double s = sum(averageColor)[0];
 		OUTPUT_CSV_VAR.push_back(s);
 	}
 	// show what is obtained
 	imshow("Capture - Face detection", frameClone);
+	if (!faceROI.empty()) imshow("face ROI", faceROI);
+
 }
 
 Mat splitColor(Mat frameC, Mat zeros, int cSel) {
@@ -183,19 +177,16 @@ Mat splitColor(Mat frameC, Mat zeros, int cSel) {
 		case 1: {
 			//showing blue spectrum
 			cv::merge(B, colorImg);
-			//imshow("Blue", colorImg);
 			break;
 		}
 		case 2: {
 			//showing red spectrum
 			cv::merge(G, colorImg);
-			//imshow("Green", colorImg);
 			break;
 		}
 		case 3: {
 			//showing red spectrum
 			cv::merge(R, colorImg);
-			//imshow("Red", colorImg);
 			break;
 		}
 		default: break;
