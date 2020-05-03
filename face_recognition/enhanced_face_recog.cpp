@@ -37,6 +37,7 @@ typedef chrono::milliseconds milliseconds;
 
 CascadeClassifier face_cascade;
 vector<double> OUTPUT_CSV_VAR;
+int faceCascadeSize = 20;
 
 int main(int argc, const char** argv) {
 	//Introducing the module
@@ -64,8 +65,8 @@ int main(int argc, const char** argv) {
 	//-- 2. Read the video stream
 	VideoCapture capture(0); //inputs into the Mat frame as CV_8UC3 format (unsigned integer)
 	capture.set(CAP_PROP_FPS, 30);
-	capture.set(CAP_PROP_FRAME_WIDTH, 1920);
-	capture.set(CAP_PROP_FRAME_HEIGHT, 1080);
+	capture.set(CAP_PROP_FRAME_WIDTH, 1920/2);
+	capture.set(CAP_PROP_FRAME_HEIGHT, 1080/2);
 
 	// check that the camera is open
 	if (!capture.isOpened())
@@ -75,10 +76,12 @@ int main(int argc, const char** argv) {
 	}
 	// this frame will store all information about the video captured by the camera
 	Mat frame;
-
-	cv::Scalar lower = cv::Scalar(0, 48, 80);
-	cv::Scalar upper = cv::Scalar(20, 255, 255);
-
+	
+	// these are the colors which will determine the skin section on my face
+	cv::Scalar lower = cv::Scalar(0, 20, 60);
+	cv::Scalar upper = cv::Scalar(20, 200, 255);
+	
+	Clock::time_point start = Clock::now();
 	for (;;)
 	{
 		if (capture.read(frame))
@@ -91,12 +94,16 @@ int main(int argc, const char** argv) {
 			break; // if escape is pressed at any time
 		}
 	}
-
-	// to find the time taken to do all calculations/capture frames
-	int fps = 30; //this is constant for now, will find a way to adjust fps dynamically
-	OUTPUT_CSV_VAR.erase(OUTPUT_CSV_VAR.begin(), OUTPUT_CSV_VAR.begin() + 150); //get rid of the first 150 frames from the recording
+	Clock::time_point end = Clock::now();
+	milliseconds ms = chrono::duration_cast<milliseconds>(end - start);
+	cout << "ran for duration: " << ms.count() << "ms\n" << endl;
+	long long duration = ms.count();
+	long long n = OUTPUT_CSV_VAR.size();
+	cout << n << "\n" << endl;
+	long long fps = n / (duration / 1000); // gives frames per second
+	cout << "Frames per second: " << fps << "\n" << endl;
 	write_CSV("output_file2.csv", OUTPUT_CSV_VAR, fps);
-
+	
 	capture.release();
 	return 0;
 }
@@ -115,42 +122,44 @@ void detectAndDisplay(Mat frame, int cSel, Scalar lBound, Scalar uBound) {
 	//-- Detect faces
 	std::vector<int> numDetections;
 	std::vector<Rect> faces;
-	face_cascade.detectMultiScale(frame_gray.clone(), faces, numDetections, 1.1, 2, 0 | CASCADE_SCALE_IMAGE, Size(20, 20));
+	face_cascade.detectMultiScale(frame_gray.clone(), faces, numDetections, 1.1, 2, 0 | CASCADE_SCALE_IMAGE, Size(faceCascadeSize, faceCascadeSize));
 	// finds the best face possible on the current frame
 	int bestIndex = std::distance(
 		numDetections.begin(),
 		std::max_element(numDetections.begin(), numDetections.end()));
 	
-	Mat faceROI;
-
+	Mat skin;
+	Mat colorImg;
 	// ensure that the frame is only processed when a face is obtained)
 	if (!faces.empty()) {
 
 		Rect bestFaceRect = faces[bestIndex]; //this contains the rectangle for the best face detected
-		Rect originalFaceRect = Rect(bestFaceRect.tl() * (1 / scaleFactor), bestFaceRect.br() * (1 / scaleFactor)); //rescaling back to normal size
+		Rect originalFaceRect = Rect(bestFaceRect.tl() * ((1 / scaleFactor)-0.4), bestFaceRect.br() * ((1 / scaleFactor)+0.4)); //rescaling back to normal size
 		// this obtains the forehead region of the face (will adjust dynamically)
-		Point innerTopLC(originalFaceRect.x + (originalFaceRect.width * 3 / 10), originalFaceRect.y + originalFaceRect.height / 20);
-		Point innerBotRC(originalFaceRect.x + (originalFaceRect.width * 7 / 10), originalFaceRect.y + (originalFaceRect.height * 1 / 5));
-		Rect myROI(innerTopLC, innerBotRC);
 		// draw on the frame clone
 		rectangle(frameClone, originalFaceRect, Scalar(0, 0, 255), 1, LINE_4, 0);
 		//-- This is used for color separation for later
 		Mat zeroMatrix = Mat::zeros(Size(frameClone.cols, frameClone.rows), CV_8UC1);
-
-		Mat colorImg = splitColor(frameClone, zeroMatrix, cSel);
-		faceROI = colorImg(myROI).clone();
+		
+		//skin detection code
+		skin = skinDetection(frameClone, originalFaceRect, lBound, uBound);
+		
 		vector<Mat> temp;
-		split(faceROI, temp);//resplits the channels (extracting the color green for default/testing cases)
+		split(skin, temp);//resplits the channels (extracting the color green for default/testing cases)
+		colorImg = temp[cSel - 1];
 		Scalar averageColor = mean(temp[cSel - 1]); //takes the average of the color along a selected spectrum B/R/G
 		double s = sum(averageColor)[0];
 		OUTPUT_CSV_VAR.push_back(s);
 	}
 	// show what is obtained
-	imshow("Capture - Face detection", frameClone);
-	if (!faceROI.empty()) imshow("face ROI", faceROI);
+	cv::imshow("Capture - Face detection", frameClone);
+	if (!faces.empty()) cv::imshow("face ROI", colorImg);
 
 }
 
+/** makes a color img for display purposes only in this code
+
+*/
 Mat splitColor(Mat frameC, Mat zeros, int cSel) {
 	// This will split the current frame (stored in frame_clone) into three different color 
 	// channels each time we get a new frame
@@ -201,29 +210,30 @@ Mat splitColor(Mat frameC, Mat zeros, int cSel) {
 	This function was written to obtain a larger sample size when doing calculations
 	for signal averaging
 
-	Mat skin = skinDetection(frame, originalFaceRect, lBound, uBound);
-	imshow("skin", skin);
-
+	
 */
-Mat skinDetection(Mat frame, Rect originalFaceRect, Scalar lBound, Scalar uBound) {
+Mat skinDetection(Mat frameC, Rect originalFaceRect, Scalar lBound, Scalar uBound) {
 
 	cv::Mat normalFace;
 	cv::Mat faceRegion;
 	cv::Mat HSVFrame;
-	cv::cvtColor(frame, HSVFrame, cv::COLOR_BGR2HSV);
+	cv::cvtColor(frameC, HSVFrame, cv::COLOR_BGR2HSV);
 	cv::Mat skinMask;
 	cv::Mat skin;
 
 	//zone out faceRegion
 	faceRegion = HSVFrame(originalFaceRect).clone();
 	cv::inRange(faceRegion, lBound, uBound, skinMask);
-	normalFace = frame(originalFaceRect).clone();
+
+	//for the real frame output we use the camera feed
+	normalFace = frameC(originalFaceRect).clone();
 
 	//apply morphology to image to remove noise and ensure cleaner frame
-	cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(20, 20));
+	cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(7, 7));
 	cv::erode(skinMask, skinMask, kernel, cv::Point(-1, -1), 2);
 	cv::dilate(skinMask, skinMask, kernel, cv::Point(-1, -1), 2);
 	cv::GaussianBlur(skinMask, skinMask, cv::Size(), 3, 3);
+	
 	//bitwise and to get the actual skin color back;
 	cv::bitwise_and(normalFace, normalFace, skin, skinMask);
 
