@@ -30,6 +30,9 @@
     <ClCompile Include="enhanced_face_recog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="skinDetector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="Diphylleia Grayi.jpg">

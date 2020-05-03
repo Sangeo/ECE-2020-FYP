@@ -30,16 +30,15 @@ using namespace cv;
 
 Mat splitColor(Mat frameC, Mat zeros, int cSel);
 void write_CSV(string filename, vector<double> arr, double fps);
-void detectAndDisplay(Mat frame, int cSel);
-
+void detectAndDisplay(Mat frame, int cSel, Scalar lower, Scalar upper);
+Mat skinDetection(Mat frame, Rect originalFaceRect, Scalar lBound, Scalar uBound);
 typedef chrono::high_resolution_clock Clock;
 typedef chrono::milliseconds milliseconds;
 
 CascadeClassifier face_cascade;
 vector<double> OUTPUT_CSV_VAR;
 
-int main(int argc, const char** argv)
-{
+int main(int argc, const char** argv) {
 	//Introducing the module
 	CommandLineParser parser(argc, argv,
 		"{help h||}"
@@ -65,8 +64,8 @@ int main(int argc, const char** argv)
 	//-- 2. Read the video stream
 	VideoCapture capture(0); //inputs into the Mat frame as CV_8UC3 format (unsigned integer)
 	capture.set(CAP_PROP_FPS, 30);
-	capture.set(CAP_PROP_FRAME_WIDTH, 1920/2);
-	capture.set(CAP_PROP_FRAME_HEIGHT, 1080/2);
+	capture.set(CAP_PROP_FRAME_WIDTH, 1920);
+	capture.set(CAP_PROP_FRAME_HEIGHT, 1080);
 
 	// check that the camera is open
 	if (!capture.isOpened())
@@ -76,13 +75,15 @@ int main(int argc, const char** argv)
 	}
 	// this frame will store all information about the video captured by the camera
 	Mat frame;
-	// to find the time taken to do all calculations/capture frames
+
+	cv::Scalar lower = cv::Scalar(0, 48, 80);
+	cv::Scalar upper = cv::Scalar(20, 255, 255);
 
 	for (;;)
 	{
 		if (capture.read(frame))
 		{
-			detectAndDisplay(frame, color_sel);
+			detectAndDisplay(frame, color_sel, lower, upper);
 		}
 
 		if (waitKey(1) == 27)
@@ -90,6 +91,8 @@ int main(int argc, const char** argv)
 			break; // if escape is pressed at any time
 		}
 	}
+
+	// to find the time taken to do all calculations/capture frames
 	int fps = 30; //this is constant for now, will find a way to adjust fps dynamically
 	OUTPUT_CSV_VAR.erase(OUTPUT_CSV_VAR.begin(), OUTPUT_CSV_VAR.begin() + 150); //get rid of the first 150 frames from the recording
 	write_CSV("output_file2.csv", OUTPUT_CSV_VAR, fps);
@@ -98,13 +101,13 @@ int main(int argc, const char** argv)
 	return 0;
 }
 
-void detectAndDisplay(Mat frame, int cSel)
-{
+void detectAndDisplay(Mat frame, int cSel, Scalar lBound, Scalar uBound) {
 	Mat frameClone = frame.clone();
 	Mat procFrame; //frame used for face recognition
 	// resize the frame upon entry
-	const double scaleFactor = 1.0 / 8;
+	const double scaleFactor = 1.0 / 9;
 	cv::resize(frameClone, procFrame, cv::Size(), scaleFactor, scaleFactor);
+
 	// clone the frame for processing
 	Mat frame_gray;
 	cvtColor(procFrame, frame_gray, COLOR_BGR2GRAY); // convert the current frame into grayscale
@@ -112,31 +115,30 @@ void detectAndDisplay(Mat frame, int cSel)
 	//-- Detect faces
 	std::vector<int> numDetections;
 	std::vector<Rect> faces;
-	face_cascade.detectMultiScale(frame_gray.clone(), faces, numDetections, 1.1);
+	face_cascade.detectMultiScale(frame_gray.clone(), faces, numDetections, 1.1, 2, 0 | CASCADE_SCALE_IMAGE, Size(20, 20));
 	// finds the best face possible on the current frame
 	int bestIndex = std::distance(
 		numDetections.begin(),
 		std::max_element(numDetections.begin(), numDetections.end()));
-	Rect myROI;
+	
 	Mat faceROI;
-	Rect originalFace;
+
 	// ensure that the frame is only processed when a face is obtained)
 	if (!faces.empty()) {
 
-		Rect bestFace = faces[bestIndex]; //this contains the rectangle for the best face detected
-		Rect originalFace = Rect(bestFace.tl() * (1 / scaleFactor), bestFace.br() * (1 / scaleFactor)); //rescaling back to normal size
+		Rect bestFaceRect = faces[bestIndex]; //this contains the rectangle for the best face detected
+		Rect originalFaceRect = Rect(bestFaceRect.tl() * (1 / scaleFactor), bestFaceRect.br() * (1 / scaleFactor)); //rescaling back to normal size
 		// this obtains the forehead region of the face (will adjust dynamically)
-		Point innerTopLC(originalFace.x + (originalFace.width * 3 / 10), originalFace.y + originalFace.height / 20);
-		Point innerBotRC(originalFace.x + (originalFace.width * 7 / 10), originalFace.y + (originalFace.height * 1 / 5));
+		Point innerTopLC(originalFaceRect.x + (originalFaceRect.width * 3 / 10), originalFaceRect.y + originalFaceRect.height / 20);
+		Point innerBotRC(originalFaceRect.x + (originalFaceRect.width * 7 / 10), originalFaceRect.y + (originalFaceRect.height * 1 / 5));
 		Rect myROI(innerTopLC, innerBotRC);
 		// draw on the frame clone
-		rectangle(frameClone, originalFace, Scalar(0, 0, 255), 1, LINE_4, 0);
+		rectangle(frameClone, originalFaceRect, Scalar(0, 0, 255), 1, LINE_4, 0);
 		//-- This is used for color separation for later
 		Mat zeroMatrix = Mat::zeros(Size(frameClone.cols, frameClone.rows), CV_8UC1);
 
 		Mat colorImg = splitColor(frameClone, zeroMatrix, cSel);
 		faceROI = colorImg(myROI).clone();
-
 		vector<Mat> temp;
 		split(faceROI, temp);//resplits the channels (extracting the color green for default/testing cases)
 		Scalar averageColor = mean(temp[cSel - 1]); //takes the average of the color along a selected spectrum B/R/G
@@ -193,6 +195,39 @@ Mat splitColor(Mat frameC, Mat zeros, int cSel) {
 		}
 		return colorImg;
 	}
+}
+
+/** Function to get skin color values on the face region of interest
+	This function was written to obtain a larger sample size when doing calculations
+	for signal averaging
+
+	Mat skin = skinDetection(frame, originalFaceRect, lBound, uBound);
+	imshow("skin", skin);
+
+*/
+Mat skinDetection(Mat frame, Rect originalFaceRect, Scalar lBound, Scalar uBound) {
+
+	cv::Mat normalFace;
+	cv::Mat faceRegion;
+	cv::Mat HSVFrame;
+	cv::cvtColor(frame, HSVFrame, cv::COLOR_BGR2HSV);
+	cv::Mat skinMask;
+	cv::Mat skin;
+
+	//zone out faceRegion
+	faceRegion = HSVFrame(originalFaceRect).clone();
+	cv::inRange(faceRegion, lBound, uBound, skinMask);
+	normalFace = frame(originalFaceRect).clone();
+
+	//apply morphology to image to remove noise and ensure cleaner frame
+	cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(20, 20));
+	cv::erode(skinMask, skinMask, kernel, cv::Point(-1, -1), 2);
+	cv::dilate(skinMask, skinMask, kernel, cv::Point(-1, -1), 2);
+	cv::GaussianBlur(skinMask, skinMask, cv::Size(), 3, 3);
+	//bitwise and to get the actual skin color back;
+	cv::bitwise_and(normalFace, normalFace, skin, skinMask);
+
+	return skin;
 }
 
 void write_CSV(string filename, vector<double> arr, double fps)
