@@ -5,7 +5,7 @@
 #include "opencv_helper.h"
 
 cv::CascadeClassifier faceCascade;
-void detectAndDisplay(cv::Mat f,cv::Scalar vec, cv::Scalar vec2);
+void detectAndDisplay(cv::Mat f,cv::Scalar vec, cv::Scalar vec2,int useHSV);
 
 int main(int argc, const char** argv) {
 	//Introducing the module
@@ -36,23 +36,30 @@ int main(int argc, const char** argv) {
 	}
 	// this frame will store all information about the video captured by the camera
 	cv::Mat frame;
+	cv::Scalar lower;
+	cv::Scalar upper;
 	//define lower and upper bounds for skin detection
 	//these values will be in HSV format NOT BGR
+	int useHSV = 0;
+	if (useHSV == 1) {
+		//HSV values - Hue, Saturation and Value 
+		lower = cv::Scalar(0, 48, 80);
+		upper = cv::Scalar(20, 255, 255);
+	}
+	else {
+		// YCrCb values - 
+	//The Y' channel (luma) is basically the grayscale version of the original image. 
+	// The Cr and Cb channels contain the colour information. They can be highly compressed.
+		lower = cv::Scalar(0, 133, 70);
+		upper = cv::Scalar(255, 173, 127);
+	}
+
 	
-	/*std::vector<unsigned int> lower, upper;
-	lower = { 0, 48, 80 };
-	std::cout << lower[0] << " " << lower[1] << " " << lower[2] << std::endl;
-	upper = { 20, 255, 255 };
-	std::cout << upper[0] << " " << upper[1] << " " << upper[2] << std::endl;*/
-
-	cv::Scalar lower = cv::Scalar(0, 48, 80);
-	cv::Scalar upper = cv::Scalar(20, 255, 255);
-
 	for (;;)
 	{
 		if (capture.read(frame))
 		{
-			detectAndDisplay(frame,lower,upper);
+			detectAndDisplay(frame,lower,upper,useHSV);
 		}
 
 		if (cv::waitKey(1) == 27)
@@ -62,7 +69,7 @@ int main(int argc, const char** argv) {
 	}
 }
 
-void detectAndDisplay(cv::Mat frame, cv::Scalar lBound, cv::Scalar uBound) {
+void detectAndDisplay(cv::Mat frame, cv::Scalar lBound, cv::Scalar uBound, int useHSV) {
 	cv::Mat frameClone = frame.clone();
 	cv::Mat procFrame; //frame used for face recognition
 
@@ -88,10 +95,18 @@ void detectAndDisplay(cv::Mat frame, cv::Scalar lBound, cv::Scalar uBound) {
 	cv::Mat faceRegion;
 	
 	cv::Mat normalFace;
-	cv::Mat HSVFrame;
-	cv::cvtColor(frame, HSVFrame, cv::COLOR_BGR2HSV);
+	cv::Mat cvtColorFrame;
+
 	cv::Mat skinMask;
-	cv::Mat skin;
+	cv::Mat skin;	
+	
+	if (useHSV == 1) {
+		cv::cvtColor(frame, cvtColorFrame, cv::COLOR_BGR2HSV);
+	}
+	else {
+		cv::cvtColor(frame, cvtColorFrame, cv::COLOR_BGR2YCrCb);
+	}
+	
 	
 
 	if (!faces.empty()) {
@@ -100,15 +115,16 @@ void detectAndDisplay(cv::Mat frame, cv::Scalar lBound, cv::Scalar uBound) {
 		rectangle(frameClone, originalFaceRect, cv::Scalar(0, 0, 255), 1, cv::LINE_4, 0);
 
 		//zone out faceRegion
-		faceRegion = HSVFrame(originalFaceRect).clone();
+		faceRegion = cvtColorFrame(originalFaceRect).clone();
 		cv::inRange(faceRegion, lBound, uBound, skinMask);
+
 		normalFace = frame(originalFaceRect).clone();
 
 		//apply morphology to image to remove noise and ensure cleaner frame
-		cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(20, 20));
-		cv::erode(skinMask, skinMask, kernel, cv::Point(-1,-1), 2);
-		cv::dilate(skinMask, skinMask, kernel, cv::Point(-1, -1), 2);
-		cv::GaussianBlur(skinMask, skinMask, cv::Size(), 3,3);
+		cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(8, 8));
+		cv::erode(skinMask, skinMask, kernel, cv::Point(-1,-1), 1);
+		cv::dilate(skinMask, skinMask, kernel, cv::Point(-1, -1), 1);
+		cv::GaussianBlur(skinMask, skinMask, cv::Size(3,3),0,0);
 		//bitwise and to get the actual skin color back;
 		cv::bitwise_and(normalFace, normalFace, skin, skinMask);
 		

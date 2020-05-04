@@ -33,6 +33,9 @@
     <ClCompile Include="skinDetector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="manualROI.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="Diphylleia Grayi.jpg">
