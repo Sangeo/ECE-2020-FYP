@@ -8,7 +8,7 @@ ROI_ColorIntensity = M(:,3);
 time = frameNumber./fps;
 
 %discard first 10 seconds of sampled data
-n = fps*10;
+n = fps*3;
 time(1:n) = [];
 ROI_ColorIntensity(1:n)=[];
 

@@ -7,7 +7,7 @@ using namespace cv;
 using namespace std;
 
 
-void detectAndDisplay(Mat frame,int c);
+void detectAndDisplay(Mat frame, int c);
 void write_CSV(string filename, vector<double> arr, double fps);
 vector<double> OUTPUT_CSV_VAR;
 
@@ -36,7 +36,7 @@ int main() {
 	{
 		if (capture.read(frame))
 		{
-			detectAndDisplay(frame,color_sel);
+			detectAndDisplay(frame, color_sel);
 		}
 
 		if (cv::waitKey(1) >= 0)
@@ -59,16 +59,17 @@ void detectAndDisplay(Mat frame, int cSel) {
 	//resize(frameClone, frameClone, cv::Size(), scaleFactor, scaleFactor);
 	Size frameSize = frameClone.size();
 
-	Rect faceROI = Rect(1280/3,720/3,200,100);
+	Rect faceROI = Rect(1280 / 3, 720 / 3, 200, 100);
 
 	rectangle(frameClone, faceROI, Scalar(0, 0, 255), 1, LINE_4, 0);
-	
+
 	imshow("frame", frameClone);
 	Mat procFrame = frame(faceROI);
 	Mat colorImg;
 	vector<Mat> temp;
 	split(procFrame, temp);//resplits the channels (extracting the color green for default/testing cases)
 	colorImg = temp[cSel - 1];
+	
 	Scalar averageColor = mean(temp[cSel - 1]); //takes the average of the color along a selected spectrum B/R/G
 	double s = sum(averageColor)[0];
 	OUTPUT_CSV_VAR.push_back(s);

@@ -3,6 +3,7 @@
 #include "opencv2/imgproc.hpp"
 #include "opencv2/videoio.hpp"
 #include "opencv2/core/matx.hpp"
+#include "opencv2/dnn/dnn.hpp"
 #include <iostream>
 #include <fstream>
 #include <chrono>
