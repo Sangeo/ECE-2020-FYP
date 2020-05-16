@@ -166,7 +166,6 @@ void detectAndDisplay(Mat frame, int cSel)
 	default: break;
 	}
 
-
 	// faceROI Detection
 	for (size_t i = 0; i < faces.size(); i++)
 	{

@@ -33,10 +33,16 @@
     <ClCompile Include="skinDetector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="manualROI.cpp">
+    <ClCompile Include="refineFaceRecog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="refineFaceRecog.cpp">
+    <ClCompile Include="adjustedFaceROI.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="manualFaceROI.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="queueFrames.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
