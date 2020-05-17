@@ -14,7 +14,9 @@ Mat skinDetection(
 
 void detectAndDisplay(
 	Mat frame,
-	int c);
+	int c,
+	Scalar lBound,
+	Scalar uBound);
 
 void write_CSV(
 	string filename,
@@ -78,12 +80,15 @@ int main(int argc, const char** argv) {
 	vector<int> botRightX;
 	vector<int> botRightY;
 
+	Scalar lower, upper;
+	// YCrCb values used for skin detection
+	lower = cv::Scalar(0, 133, 70);
+	upper = cv::Scalar(255, 173, 127);
 
-	for (;;)
-	{
+	for (;;){
 		if (capture.read(frame))
 		{
-			detectAndDisplay(frame, color_sel);
+			detectAndDisplay(frame, color_sel, lower, upper);
 		}
 
 		if (cv::waitKey(1) >= 0)
@@ -98,7 +103,7 @@ int main(int argc, const char** argv) {
 
 /** to detect a specified region of interest in a video feed from camera
 */
-void detectAndDisplay(Mat frame, int cSel) {
+void detectAndDisplay(Mat frame, int cSel, Scalar lower, Scalar upper) {
 
 	Mat frameClone = frame.clone();
 	Mat procFrame;
@@ -119,9 +124,11 @@ void detectAndDisplay(Mat frame, int cSel) {
 		numDetections.begin(),
 		std::max_element(numDetections.begin(), numDetections.end()));
 
+	Mat skinRegion;
 	if (!faces.empty()) {
 		//find the faceROI using a moving average to ease the noise out	
 		Rect faceROI = findPoints(faces, bestIndex, scaleFactor);
+		skinRegion = skinDetection(frameClone, faceROI, lower, upper);
 
 		if (!faceROI.empty()) {
 			rectangle(frameClone, faceROI, Scalar(0, 0, 255), 1, LINE_4, 0);
@@ -146,6 +153,9 @@ void detectAndDisplay(Mat frame, int cSel) {
 	imshow("frame", frameClone);
 }
 
+/** calculates the moving average for the coordinates used for the face
+
+*/
 Rect findPoints(vector<Rect> faces, int bestIndex, double scaleFactor) {
 	//locates the best face ROI coordinates
 	double tlX = floor(faces[bestIndex].tl().x * (1 / scaleFactor));
@@ -163,7 +173,7 @@ Rect findPoints(vector<Rect> faces, int bestIndex, double scaleFactor) {
 	int sumBX = 0;
 	int sumBY = 0;
 	//if the queue size is above a certain number we start to take the average of the frames
-	int frameWindow = 30;
+	int frameWindow = 5;
 	if (topLeftX.size() >= frameWindow) {
 
 		// Take the sum of all elements in the current frame window
@@ -210,6 +220,9 @@ Rect findPoints(vector<Rect> faces, int bestIndex, double scaleFactor) {
 	return Rect();
 }
 
+/** writes end result to .csv file for processing later on
+
+*/
 void write_CSV(string filename, vector<double> arr, double fps) {
 	ofstream myfile;
 	myfile.open(filename.c_str());
@@ -220,7 +233,9 @@ void write_CSV(string filename, vector<double> arr, double fps) {
 	}
 }
 
+/** detects skin region and returns the skin frame (mat)
 
+*/
 Mat skinDetection(Mat frameC, Rect originalFaceRect, Scalar lBound, Scalar uBound) {
 
 	cv::Mat normalFace;
@@ -240,8 +255,7 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect, Scalar lBound, Scalar uBoun
 	//apply morphology to image to remove noise and ensure cleaner frame
 	cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(8, 8));
 	cv::erode(skinMask, skinMask, kernel, cv::Point(-1, -1), 1);
-	cv::dilate(skinMask, skinMask, kernel, cv::Point(-1, -1), 1);
-
+	//cv::dilate(skinMask, skinMask, kernel, cv::Point(-1, -1), 1);
 	cv::GaussianBlur(skinMask, skinMask, cv::Size(7, 7), 1, 1);
 
 	//bitwise and to get the actual skin color back;
