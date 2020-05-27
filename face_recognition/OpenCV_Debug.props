@@ -3,7 +3,8 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <IncludePath>C:\Users\jerry\Documents\OpenCV\sources\data\haarcascades;C:\Users\jerry\Documents\OpenCV\sources\modules\objdetect\include\;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\jerry\boost_1_73_0;C:\Users\jerry\gnuplot-iostream;C:\Users\jerry\vcpkg\installed\x86-windows\include\python3.7;C:\Users\jerry\Documents\OpenCV\sources\data\haarcascades;C:\Program Files %28x86%29\Microsoft Visual Studio\Shared\Python37_64\Lib\site-packages;C:\Users\jerry\Documents\OpenCV\sources\modules\objdetect\include\;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\jerry\AppData\Local\Programs\Python\Python38-32\Lib\site-packages;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>

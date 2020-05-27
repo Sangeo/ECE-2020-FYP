@@ -1,13 +1,15 @@
 #include "opencv_helper.h"
+#include <cmath>
+
 
 using namespace cv;
 using namespace std;
 
-void getColorValues(
-	deque<Mat> fQueue);
+deque<double> getColorValues(
+	Mat frame);
 
 Mat detectAndDisplay(
-	deque<Mat> fQueue);
+	Mat frame);
 
 void write_CSV(
 	string filename,
@@ -26,11 +28,13 @@ deque<double> topLeftY;
 deque<double> botRightX;
 deque<double> botRightY;
 
+constexpr int maxColors = 3;
+
 typedef chrono::high_resolution_clock Clock;
 typedef chrono::milliseconds milliseconds;
 
 int main(int argc, const char** argv) {
-	
+
 	//introduce the module
 	CommandLineParser parser(argc, argv,
 		"{help h||}"
@@ -38,7 +42,7 @@ int main(int argc, const char** argv) {
 		"{camera|0|Camera device number.}");
 	parser.about("\nPress Esc to quit program\nThis program demonstrates signal decomposition by color in openCV with facial recognition in a video stream");
 	parser.printMessage();
-	int colorSelect = 2;
+
 	//-- 1. Load the cascades
 	String face_cascade_name = samples::findFile(parser.get<String>("face_cascade"));
 	if (!face_cascade.load(face_cascade_name))
@@ -55,95 +59,122 @@ int main(int argc, const char** argv) {
 	capture.set(CAP_PROP_AUTOFOCUS, 0);
 	capture.set(CAP_PROP_ISO_SPEED, 400);
 
-	//introduce queues
-	deque<Mat> frameQueue;
-	deque<Mat> ROIQueue;
-	
+	// introduce queues
+	deque<double> blue, green, red;
+
+	// current frame
 	Mat newFrame;
-	
-	int maxBufferSize = 200;
-	int minBufferSize = 60;
-	int windowSize = 12; //minimum 6 frames per window to detect heart rate pattern
+	int maxBufferSize = 300;
+	int windowSize = 10; //minimum 6 frames per window to detect heart rate pattern
+	bool initializing = true;
+
 	for (;;) {
-
-		//get new frame
-		capture.read(newFrame);
-		if (!newFrame.empty()){
-			//frame producer
-			frameQueue.push_back(newFrame);
-			
-			//find the face ROI and add to co-ordinates face ROI queue
-			Clock::time_point start = Clock::now();
-			Mat tempFrame = detectAndDisplay(frameQueue);
-			Clock::time_point end = Clock::now();
-			milliseconds ms = chrono::duration_cast<milliseconds>(end-start);
-			long long duration = ms.count();
-			//cout << "duration for detection: " << duration << "ms" << endl;
-			//faceROI producer
-			
-			if (!tempFrame.empty()) {
-				ROIQueue.push_back(tempFrame);
-				getColorValues(ROIQueue);
-			}
-			
-			cout << "frameQueue is at: " << frameQueue.size() << endl;
-			cout << "ROIQueue is at: " << ROIQueue.size() << endl;
-						
-		}
-
-
-		
-		if (frameQueue.size() > maxBufferSize) {
-			cout << "Too many frames being queued, deleting down to min size..." << endl;
-			while (frameQueue.size() > minBufferSize) {
-				frameQueue.pop_front();
+		// if a frame is captured, decoded and stored into the newFrame matrix
+		if (capture.read(newFrame)) {
+			Mat temp;
+			//find the face and take the faceROI and output as a frame of just forehead region pixels
+			temp = detectAndDisplay(newFrame);
+			//average of current colors, output with a rawData vector containing red, green, and blue values separately
+			deque<double> rawData = getColorValues(temp);
+			if (!rawData.empty()) {
+				blue.push_back(rawData[0]);
+				green.push_back(rawData[1]);
+				red.push_back(rawData[2]);
 			}
 		}
-		if (ROIQueue.size() > maxBufferSize) {
-			cout << "Too many ROIs being queued, deleting down to min size..." << endl;
-			while (ROIQueue.size() > minBufferSize) {
-				ROIQueue.pop_front();
+
+		// if it is the first 5 seconds of the video recording, get rid of it so we don't get any spikes in readings
+		if (initializing) {
+			if (blue.size() > 150) {
+				while (!blue.empty()) {
+					blue.pop_front();
+					green.pop_front();
+					red.pop_front();
+				}
+				initializing = false;
+			}
+		}
+		//if there is sufficient information to process, create a sliding window with length l (enough to contain one heart beat)
+		//sliding window implementation
+		if ((green.size() > windowSize) && (initializing == false)) {
+
+			Mat bgrIntensityz(windowSize, maxColors, CV_64F);
+			for (size_t i = 0; i < windowSize; i++) {
+				for (size_t j = 0; j < maxColors; j++) {
+					if (j == 0) {
+						bgrIntensityz.at<double>(i,j) = blue[i];
+					}
+					else if (j == 1) {
+						bgrIntensityz.at<double>(i,j) = green[i];
+					}
+					else if (j == 2) {
+						bgrIntensityz.at<double>(i, j) = red[i];
+					}
+				}
+			}
+			//cout << "M = " << endl << " " << bgrIntensityz << endl << endl;
+			green.pop_front();
+			blue.pop_front();
+			red.pop_front();
+
+		}
+
+		//get rid of the buffer if it exceeds a certain number of frames (contingency planning)
+		if (blue.size() > maxBufferSize) {
+			cout << "exceeded buffer size!! deleting information now!!" << endl;
+			while (!blue.empty()) {
+				blue.pop_front();
+				green.pop_front();
+				red.pop_front();
 			}
 		}
 		if (waitKey(1) > 0) {
 			break;
 		}
 	}
+	//write_CSV("output_file2.csv", OUTPUT_CSV_VAR, 30);
+
 	return 1;
 }
 
 /** Function: getColorValues
-	takes the current frameWindow of frames alongside the current ROI 
-	and calculates the mean color values in all three color channels 
+	takes the current frameWindow of frames alongside the current ROI
+	and calculates the mean color values in all three color channels
 	and passes these values to the output csv
 */
-void getColorValues(deque<Mat> fQueue) {
-	while (!fQueue.empty()) {
-		Mat procFrame = fQueue.front();
+deque<double> getColorValues(Mat frame) {
+	double blue, green, red;
+	deque<double> output;
+	if (!frame.empty()) {
+		Mat procFrame = frame;
+		
 		vector<Mat> temp;
 		split(procFrame, temp);	//resplits the channels (extracting the color green for default/testing cases)
+
 		Scalar averageColorb = mean(temp[0]); //takes the average of the color along a selected spectrum B/R/G
 		double blue = sum(averageColorb)[0];
 		Scalar averageColorg = mean(temp[1]); //takes the average of the color along a selected spectrum B/R/G
 		double green = sum(averageColorg)[0];
 		Scalar averageColorr = mean(temp[2]); //takes the average of the color along a selected spectrum B/R/G
 		double red = sum(averageColorr)[0];
-
+		output = { blue, green, red };
 		/*OUTPUT_CSV_VAR.push_back(blue);
 		OUTPUT_CSV_VAR.push_back(green);
 		OUTPUT_CSV_VAR.push_back(red); */
-		fQueue.pop_front();
-
+		
+		//cout << "b: " << blue << " g: " << green << " r: " << red << endl;
 	}
+
+	return output;
 }
 
 /** to detect a face in a video feed from camera and
 	return the frame of information which contains the color information in it.
-	
-*/
-Mat detectAndDisplay(deque<Mat> fQueue) {
 
-	Mat frameClone = fQueue.front().clone();
+*/
+Mat detectAndDisplay(Mat frame) {
+
+	Mat frameClone = frame.clone();
 	Mat procFrame;
 	Mat frameGray;
 	std::vector<Rect> faces;
@@ -182,14 +213,14 @@ Mat detectAndDisplay(deque<Mat> fQueue) {
 	}
 	imshow("frame", frameClone);
 
-	fQueue.pop_front();
 	return calcFrame;
 }
 
-/** locates the best face ROI coordinates
+/** Function findPoints
+	locates the best face ROI coordinates using a simple moving average to eliminate noise
 */
 Rect findPoints(vector<Rect> faces, int bestIndex, double scaleFactor) {
-	
+
 	double tlX = floor(faces[bestIndex].tl().x * (1 / scaleFactor));
 	double tlY = floor(faces[bestIndex].tl().y * (1 / scaleFactor));
 	double brX = floor(faces[bestIndex].br().x * (1 / scaleFactor));
@@ -205,7 +236,7 @@ Rect findPoints(vector<Rect> faces, int bestIndex, double scaleFactor) {
 	double sumBX = 0;
 	double sumBY = 0;
 	//if the queue size is above a certain number we start to take the average of the frames
-	int frameWindow = 18;
+	int frameWindow = 8;
 	if (topLeftX.size() >= frameWindow) {
 
 		//Take the sum of all elements in the current frame window

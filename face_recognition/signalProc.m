@@ -39,10 +39,10 @@ ylabel('Color Intensity')
 title('Find Prominent Peaks')
 
 
-figure(3)
+%figure(3)
 [pks,locs] = findpeaks(simple,time,'MinPeakProminence', 0.25);
 peakInterval = diff(locs);
-histogram(peakInterval,30)
+%histogram(peakInterval,30)
 xlabel('time')
 ylabel('number of signal peaks received')
 

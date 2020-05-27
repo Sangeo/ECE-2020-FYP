@@ -67,6 +67,7 @@ int main(int argc, const char** argv) {
 		std::cout << "--(!)Error opening video capture\n";
 		return -1;
 	}
+
 	//prompt to select color
 	cout << "Please select the color for signal decomposition\n";
 	cout << "1 for blue, 2 for green, 3 for red : \n";
@@ -85,7 +86,8 @@ int main(int argc, const char** argv) {
 	lower = cv::Scalar(0, 133, 70);
 	upper = cv::Scalar(255, 173, 127);
 
-	for (;;){
+
+	for (;;) {
 		if (capture.read(frame))
 		{
 			detectAndDisplay(frame, color_sel, lower, upper);
@@ -96,7 +98,7 @@ int main(int argc, const char** argv) {
 			break; // if escape is pressed at any time
 		}
 	}
-	long long fps = 30; // gives frames per second
+	long long fps = 20; // gives frames per second
 	write_CSV("output_file2.csv", OUTPUT_CSV_VAR, fps);
 
 }
@@ -124,33 +126,31 @@ void detectAndDisplay(Mat frame, int cSel, Scalar lower, Scalar upper) {
 		numDetections.begin(),
 		std::max_element(numDetections.begin(), numDetections.end()));
 
-	Mat skinRegion;
 	if (!faces.empty()) {
 		//find the faceROI using a moving average to ease the noise out	
 		Rect faceROI = findPoints(faces, bestIndex, scaleFactor);
-		skinRegion = skinDetection(frameClone, faceROI, lower, upper);
+
 
 		if (!faceROI.empty()) {
 			rectangle(frameClone, faceROI, Scalar(0, 0, 255), 1, LINE_4, 0);
-
 			// locate region of interest (ROI) for the forehead
 			Point innerTopLC(faceROI.x + (faceROI.width * 3 / 10), faceROI.y + (faceROI.height / 20));
 			Point innerBotRC(faceROI.x + (faceROI.width * 7 / 10), faceROI.y + (faceROI.height * 1 / 5));
 			Rect myROI(innerTopLC, innerBotRC);
+			// draws on the current region of interest for forehead
 			rectangle(frameClone, myROI, Scalar(0, 0, 255), 1, LINE_8, 0);
 
-			Mat resultFrame = frameClone(myROI);
-			Mat colorImg;
+			Mat ROI = frameClone(myROI);
 			vector<Mat> temp;
-			split(resultFrame, temp);	//resplits the channels (extracting the color green for default/testing cases)
-			colorImg = temp[cSel - 1];
-
-			Scalar averageColor = mean(temp[cSel - 1]); //takes the average of the color along a selected spectrum B/R/G
+			split(ROI, temp);
+			Mat colorImg = temp[cSel - 1];
+			Scalar averageColor = mean(colorImg); //takes the average of the color along a selected spectrum B/R/G
 			double s = sum(averageColor)[0];
 			OUTPUT_CSV_VAR.push_back(s);
 		}
 	}
 	imshow("frame", frameClone);
+
 }
 
 /** calculates the moving average for the coordinates used for the face
@@ -240,26 +240,47 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect, Scalar lBound, Scalar uBoun
 
 	cv::Mat normalFace;
 	cv::Mat faceRegion;
+	cv::Mat faceRegion2;
 	cv::Mat YCrCbFrame;
+	cv::Mat HSVFrame;
+	
 	cv::cvtColor(frameC, YCrCbFrame, cv::COLOR_BGR2YCrCb);
-	cv::Mat skinMask;
-	cv::Mat skin;
+	cv::cvtColor(frameC, HSVFrame, cv::COLOR_BGR2HSV);
+	//use two masks, one to detect for skin, one to detect for valid skin values
+	Scalar HSVUpper, HSVLower;
+	HSVLower = Scalar(0, 58, 70);
+	HSVUpper = Scalar(17, 170, 255);
 
+	cv::Mat skinMask;
+	cv::Mat skinMask2;
+	cv::Mat skin;
+	Mat trialMask;
+	//medianBlur(YCrCbFrame, YCrCbFrame, 5);
+	//medianBlur(HSVFrame, HSVFrame, 5);
 	//zone out faceRegion
 	faceRegion = YCrCbFrame(originalFaceRect).clone();
 	cv::inRange(faceRegion, lBound, uBound, skinMask);
+	faceRegion2 = HSVFrame(originalFaceRect).clone();
+	cv::inRange(faceRegion2, HSVLower, HSVUpper, skinMask2);
+
+	Mat kernel = Mat::ones(Size(10, 10), CV_8U);
+	
+	bitwise_and(skinMask, skinMask2, trialMask, noArray());
+
+	//apply morphology to image to remove noise and ensure cleaner frame
+	cv::morphologyEx(trialMask, trialMask, MORPH_OPEN, kernel);
+
+	medianBlur(trialMask, trialMask, 5);
 
 	//for the real frame output we use the camera feed
 	normalFace = frameC(originalFaceRect).clone();
 
-	//apply morphology to image to remove noise and ensure cleaner frame
-	cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(8, 8));
-	cv::erode(skinMask, skinMask, kernel, cv::Point(-1, -1), 1);
-	//cv::dilate(skinMask, skinMask, kernel, cv::Point(-1, -1), 1);
-	cv::GaussianBlur(skinMask, skinMask, cv::Size(7, 7), 1, 1);
-
 	//bitwise and to get the actual skin color back;
-	cv::bitwise_and(normalFace, normalFace, skin, skinMask);
+	cv::bitwise_and(normalFace, normalFace, skin, trialMask);
+
+	//imshow("skinMask1", skinMask);
+	//imshow("SkinMask2", skinMask2);
+	imshow("trialMask", trialMask);
 
 	return skin;
 }
