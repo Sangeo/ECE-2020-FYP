@@ -103,7 +103,10 @@ int main(int argc, const char** argv) {
 		}
 		//grab skin pixel information from the queue and process the data
 		else if (skinFrameQ.size() > capLength) {
-			
+
+			deque<Mat> eigValVec; // This will contain the eigenvalues
+			deque<Mat> eigVecVec; // This will contain the eigenvectors
+			deque<Mat> SR_;
 			// with each frame in the queue
 			for (size_t i = 0; i < capLength; i++) {
 				//our skinFrames are queued in a deque, which can be accessed using a for loop
@@ -114,13 +117,14 @@ int main(int argc, const char** argv) {
 				vector<Mat> colorVector;
 				split(temp, colorVector);
 				// colorVector has size 3xN, 
-				// colorVector[0] contains all blue pixels, this includes 0s
+				// colorVector[0] contains all blue pixels
 				// colorVector[1] contains all green pixels 
 				// colorVector[2] contains all red pixels 
 
+
+				/**code used to get rid of the unnecessary zeros**/
 				// note: we only need to use one mask here since skin pixel values cannot be (0,0,0)
 				vector<Point> mask;
-				/**code used to get rid of the unnecessary zeros**/
 				findNonZero(colorVector[0], mask);
 				Mat bVal, gVal, rVal;
 				for (Point p : mask) {
@@ -128,60 +132,107 @@ int main(int argc, const char** argv) {
 					gVal.push_back(colorVector[1].at<uchar>(p)); // collect green values
 					rVal.push_back(colorVector[2].at<uchar>(p)); // collect red values
 				}
-
+				
 				Mat colorValues; //colorValues is a Nx3 matrix
 				vector<Mat> matrices = { bVal, gVal, rVal };
 				hconcat(matrices, colorValues);
+
 				// identity of the colorValues matirx
 				int rows = colorValues.rows; // this will be the number of skin-pixels N
 				int cols = colorValues.cols; // this will be the 3 color channels (b,g,r)
 
-				Mat vTv; //Transposed colorValues * colorValues normalising 
+				Mat vTv; //Transposed colorValues * colorValues, normalised matrix
 				cv::mulTransposed(colorValues, vTv, true); //This will convert our N X 3 matrix into a 3 X 3 matrix.
 
 				// Divide the multiplied vT*v vector by the total number of skin-pixels
 				double N = rows; // number of skin-pixels
-				Mat C;
-				cv::divide(N, vTv, C); // Correlation vector C, consitutes the matrix used for spatial subspace
-				
+				Mat C = vTv / N;
 				Mat eigVal, eigVec;
 				cv::eigen(C, eigVal, eigVec);	//computes the eigenvectors and eigenvalues used 
 												//for our spatial subspace rotation calculations
+				//sort the eigen values from largest to lowest
 				Mat sortEigVal;
 				cv::sort(eigVal, sortEigVal, cv::SortFlags::SORT_EVERY_COLUMN + cv::SortFlags::SORT_DESCENDING);
+				
+				/*cout << "C" << endl << C << endl;
+				cout << "eigVal" << endl << eigVal << endl;
+				cout << "eigVec" << endl << eigVec << endl;*/
 
 				/* ~~~~temporal stride analysis~~~~ */
-				int strideLength = 20; // size of the temporal stride
+				int strideLength = 10; // size of the temporal stride
 				//Within the stride, we will analyze the temporal changes in the eigenvector subspace.
-
-				// NOTE MOVE THIS OUT SIDE OF THE LOOP
-				vector<Mat> eigValVec; // This will contain the eigenvalues
-				vector<Mat> eigVecVec; // This will contain the eigenvectors
-				
 				eigValVec.push_back(sortEigVal.clone()); // This will contain the first frame's content for eigenvalues
 				eigVecVec.push_back(eigVec.clone()); // This will contain the first frame's content for eigenvectors
 
+				Mat uTau, sTau;
+				Mat uTime, sTime;
+				Mat R_, S;
+
 				if (i > strideLength) {
-					cout << "current eigVecvec size: " << eigVecVec.size() << endl;
-					for (size_t j = 0; j < strideLength; j++) {
+					uTau = eigVecVec.front().clone();
+					sTau = eigValVec.front().clone();
+					for (size_t j = 1; j < strideLength; j++) {
+						//current values of the eigenvector and eigenvalues
+						uTime = eigVecVec[j].clone();
+						sTime = eigValVec[j].clone();
 
-						cout << "eigVecVec at position: " << j << endl << eigVecVec[j].col(0) << endl;
+						// calculation for R'
+						Mat t1, t_2, t_3, r1, r2;
+						t1 = uTime.col(0).clone();
+						cv::transpose(t1, t1);
+						t_2 = uTau.col(1).clone();
+						r1 = t1 * t_2;
+						t_3 = uTau.col(2).clone();
+						r2 = t1 * t_3;
+						double result[2] = { sum(r1)[0],sum(r2)[0] };
+						R_ = (Mat_<double>(1, 2) << result[0] , result[1]); // obtains the R' values required to calculate the SR'
 						
-						/*transpose(strideUT1, strideUT1);
-						Mat t1, t2;
-						multiply(strideUT1, strideUTau2, t1);
-						multiply(strideUT1, strideUTau3, t2);
+						// calculation for S
+						Mat temp, tau2, tau3;
+						temp = sTime.row(0).clone();
+						tau2 = sTau.row(1).clone();
+						tau3 = sTau.row(2).clone();
+						
+						/*cout << temp << endl;
+						cout << tau2 << endl;
+						cout << tau3 << endl;*/
 
-						cout << "t1: " << endl << t1 << endl;
-						cout << "t2: " << endl << t2 << endl;*/
+						double result2[3] = { sum(temp)[0],sum(tau2)[0],sum(tau3)[0] };
+						double s1, s2;
+						s1 = sqrt(result2[0] / result2[1]);
+						s2 = sqrt(result2[0] / result2[2]);
+						S = (Mat_<double>(1, 2) << s1, s2);
+						Mat SR;
+						cv::multiply(S, R_, SR);
+						cout << "result matrix S: " << endl << SR << endl;
+						Mat transUTau;
+						transpose(t_2, t_2);
+						transpose(t_3, t_3);
+						vector<Mat> arrays;
+						arrays.push_back(t_2);
+						arrays.push_back(t_3);
+						vconcat(arrays, transUTau);
+						
+						// Obtain the SR' 
+						SR_.push_back(SR * transUTau);
 
 					}
+
+					eigVecVec.pop_front();
+					eigValVec.pop_front();
+					/*
+					// Calculate S1 and S2
+					Mat SR_1, SR_2;
+					SR_1 = SR_[0];
+					SR_2 = SR_[1];
+					Scalar SR_1Mean, SR_2Mean, SR_1Stdev, SR_2Stdev;
+					cv::meanStdDev(SR_1, SR_1Mean, SR_1Stdev);
+					cv::meanStdDev(SR_2, SR_2Mean, SR_2Stdev);
+					double SR1MeanStd[2], SR2MeanStd[2];
+					cout << "Mean is: " << SR_1Mean << ", " << SR_1Stdev << endl;
+					cout << "Mean is: " << SR_2Mean << ", " << SR_2Stdev << endl;
+					*/
 				}
-
-				/*cout << "C: " << endl << C << endl;
-				cout << "eigenvalues: " << endl << eigVal << endl;
-				cout << "eigenvectors: " << endl << eigVec << endl;*/
-
 
 			}
 
