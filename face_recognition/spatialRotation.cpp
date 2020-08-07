@@ -33,8 +33,11 @@ Mat skinDetection(
 	Mat frameC,
 	Rect originalFaceRect);
 
+void write_CSV(string filename, vector<float> arr);
+
+
 CascadeClassifier face_cascade;
-deque<double> OUTPUT_CSV_VAR;
+vector<float> OUTPUT_CSV_VAR;
 deque<double> topLeftX;
 deque<double> topLeftY;
 deque<double> botRightX;
@@ -82,7 +85,8 @@ int main(int argc, const char** argv) {
 	Mat newFrame;
 	Mat skinFrame;
 	deque<Mat> skinFrameQ;
-	Mat longTermPulseVector = Mat::zeros(1, capLength, CV_32F);
+	Mat longTermPulseVector;
+	deque<Mat> tempPulseVector;
 
 	while (true) {
 
@@ -177,17 +181,19 @@ int main(int argc, const char** argv) {
 				Mat uTau, lambdaTau;
 				Mat uTime, lambdaTime;
 				Mat RDash, S; //R' and S
+
 				int tempTau = i - strideLength + 1;
 				if (tempTau > 0) {
-					uTau = eigVecArray[tempTau].clone();
-					lambdaTau = eigValArray[tempTau].clone();
+					uTau = eigVecArray[tempTau-1].clone();
+					lambdaTau = eigValArray[tempTau-1].clone();
 
 					//for (size_t j = 1; j < strideLength + 1; j++) {
-					for (tempTau; tempTau < i; tempTau++) {
+					for (int t = tempTau; t < i; t++) {
 						//current values of the eigenvector and eigenvalues
-						uTime = eigVecArray[tempTau].clone();
-						lambdaTime = eigValArray[tempTau].clone();
+						uTime = eigVecArray[t].clone();
+						lambdaTime = eigValArray[t].clone();
 
+						
 						// calculation for R'
 						Mat t1, t_2, t_3, r1, r2;
 						t1 = uTime.col(0).clone(); //current frame's U (or u1 vector)
@@ -214,8 +220,8 @@ int main(int argc, const char** argv) {
 						cv::multiply(S, RDash, SR);
 
 						if (DEBUGGING_MODE) {
-							cout << "result matrix S: " << endl << SR << endl;
-							cout << "Type of matrix S: " << SR.type() << endl;
+							cout << "result matrix SR: " << endl << SR << endl;
+							cout << "Type of matrix SR: " << SR.type() << endl;
 						}
 
 						Mat u2T, u3T;
@@ -231,7 +237,7 @@ int main(int argc, const char** argv) {
 						if (DEBUGGING_MODE) {
 							cout << "transUTau vector: " << endl << transUTau << endl;
 							cout << "Type of matrix transuTau: " << transUTau.type() << endl;
-							cout << "Type of matrix S: " << SR.type() << endl;
+							cout << "Type of matrix Sr: " << SR.type() << endl;
 						}
 
 						//back-projection into the original RGB space
@@ -267,14 +273,44 @@ int main(int argc, const char** argv) {
 					//Calculate pulse vector 
 					Mat pulseVector;
 					pulseVector = SR_1 - (SR_1std / SR_2std) * SR_2;
+
 					if (DEBUGGING_MODE) {
 						cout << "Current PulseVector before overlap-adding: " << endl << pulseVector << endl;
 					}
-					//Calculate long-term pulse vector over successive strides using overlap-adding
 
-					//add(longTermPulseVector, pulseVector - mean(pulseVector), longTermPulseVector);
+					//Calculate long-term pulse vector over successive strides using overlap-adding
+					longTermPulseVector = pulseVector - mean(pulseVector);
+
+					//if (!pulseVector.empty() && firstStride) {
+					//	longTermPulseVector = pulseVector;
+					//	longTermPulseVector = longTermPulseVector - (pulseVector - mean(pulseVector));
+					//	tempPulseVector.push_back(pulseVector);
+					//	firstStride = false;
+					//}
+					//else {
+					//	//gets the previous pulseVector to do overlap-adding
+					//	Mat t;
+					//	t = tempPulseVector.front().clone();
+					//	Mat r = Mat::zeros(pulseVector.rows, 1, 5); //makes a vector that is the same size as the current pulsevector, but is filled with zeros.
+					//	// t has size smaller than the current pulseVector, so in order to add the previous one and the current one, we need to add its elements to the Mat r one by one.
+
+					//	for (int i = 0; i < t.rows; i++) {
+					//		r.at<float>(i) = t.at<float>(i);
+					//	}
+					//	longTermPulseVector = r + (pulseVector - mean(pulseVector));
+					//	tempPulseVector.push_back(longTermPulseVector);
+					//	if (DEBUGGING_MODE) {
+					//		cout << endl << endl << "the previous pulseVector was: " << t << endl;
+					//		cout << endl << endl << "the current vector r is : " << r << endl;
+
+					//	}
+					//	tempPulseVector.pop_front();
+					//}
+
+
 					if (DEBUGGING_MODE) {
-						//cout << "Current Long-term Pulse Vector :" << endl << longTermPulseVector << endl;
+						cout << "Current Long-term Pulse Vector :" << endl << longTermPulseVector << endl;
+
 					}
 
 				}
@@ -286,6 +322,17 @@ int main(int argc, const char** argv) {
 			SRDash.clear();
 		}
 
+		if (!longTermPulseVector.empty()) {
+			for (int i = 0; i < longTermPulseVector.rows; i++) {
+				OUTPUT_CSV_VAR.push_back(longTermPulseVector.at<float>(i));
+			}
+
+			write_CSV("output_file3.csv", OUTPUT_CSV_VAR);
+
+			cout << "the program has finished running for the capture of one stroll of frames" << endl;
+
+			break;
+		}
 		//return the pulse 
 
 		//exit condition is when the keyboard is pressed anywhere.
@@ -489,4 +536,17 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	if (!trialMask.empty()) imshow("trialMask", trialMask);
 
 	return skin;
+}
+
+/** Function: write_CSV
+	Input: filename, vector<double> of numbers
+	Output: prints to csv file the results
+*/
+void write_CSV(string filename, vector<float> arr) {
+	ofstream myfile;
+	myfile.open(filename.c_str());
+	int vsize = arr.size();
+	for (int n = 0; n < vsize; n++) {
+		myfile << n << ";" << arr[n] << endl;
+	}
 }
