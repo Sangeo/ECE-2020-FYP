@@ -48,7 +48,7 @@ constexpr int maxColors = 3; //B,G,R
 typedef chrono::high_resolution_clock Clock;
 typedef chrono::milliseconds milliseconds;
 
-static bool DEBUGGING_MODE = false;
+static bool DEBUGGING_MODE = true;
 
 
 int main(int argc, const char** argv) {
@@ -184,8 +184,8 @@ int main(int argc, const char** argv) {
 
 				int tempTau = i - strideLength + 1;
 				if (tempTau > 0) {
-					uTau = eigVecArray[tempTau-1].clone();
-					lambdaTau = eigValArray[tempTau-1].clone();
+					uTau = eigVecArray[tempTau - 1].clone();
+					lambdaTau = eigValArray[tempTau - 1].clone();
 
 					//for (size_t j = 1; j < strideLength + 1; j++) {
 					for (int t = tempTau; t < i; t++) {
@@ -193,7 +193,7 @@ int main(int argc, const char** argv) {
 						uTime = eigVecArray[t].clone();
 						lambdaTime = eigValArray[t].clone();
 
-						
+
 						// calculation for R'
 						Mat t1, t_2, t_3, r1, r2;
 						t1 = uTime.col(0).clone(); //current frame's U (or u1 vector)

@@ -76,7 +76,7 @@ int main(int argc, const char** argv) {
 	capture.set(CAP_PROP_AUTOFOCUS, 0);
 	capture.set(CAP_PROP_ISO_SPEED, 400);
 
-	int capLength = capture.get(CAP_PROP_FPS) * 8 - 1; //get 8 seconds worth of information
+	int capLength = capture.get(CAP_PROP_FPS) * 8; //get 8 seconds worth of information
 	int strideLength = 20; // size of the temporal stride 
 										//(10 frames as this should capture the heart rate information)
 	bool firstTime = true;
@@ -96,9 +96,11 @@ int main(int argc, const char** argv) {
 			//send newFrame into detectAndDisplay to obtain skin mask
 			if (!newFrame.empty()) {
 				skinFrame = detectAndDisplay(newFrame);
-
+				
 				//queue if the skinFrame is ready to be pushed into the queue
-				if (!skinFrame.empty()) skinFrameQ.push_back(skinFrame);
+				if (!skinFrame.empty()) {
+					skinFrameQ.push_back(skinFrame);
+				}
 			}
 		}
 
@@ -117,12 +119,13 @@ int main(int argc, const char** argv) {
 			if (DEBUGGING_MODE) {
 				cout << "There are: " << skinFrameQ.size() << " frames stored in the queue." << endl;
 				cout << ".................................." << endl;
+				
 			}
 			deque<Mat> eigValArray; // This will contain the eigenvalues
 			deque<Mat> eigVecArray; // This will contain the eigenvectors
 			vector<Mat> SRDash;
 			// for each frame in the queue 
-			for (size_t i = 1; i < capLength + 1; i++) {
+			for (size_t i = 1; i < capLength; i++) {
 				//our skinFrames are queued in a deque, which can be accessed using a for loop
 				//this retrieves a single skin frame from the queue, but this will contain many zeros
 				Mat temp = skinFrameQ.front().clone();
@@ -184,16 +187,19 @@ int main(int argc, const char** argv) {
 
 				int tempTau = i - strideLength + 1;
 				if (tempTau > 0) {
-					uTau = eigVecArray[tempTau-1].clone();
-					lambdaTau = eigValArray[tempTau-1].clone();
+					uTau = eigVecArray[tempTau - 1].clone();
+					lambdaTau = eigValArray[tempTau - 1].clone();
 
-					//for (size_t j = 1; j < strideLength + 1; j++) {
-					for (int t = tempTau; t < i; t++) {
+					int t; //this will need to be re-used for t 
+					for (t = tempTau; t < i; t++) {
 						//current values of the eigenvector and eigenvalues
 						uTime = eigVecArray[t].clone();
 						lambdaTime = eigValArray[t].clone();
-
-						
+						if (DEBUGGING_MODE) {
+							cout << "Current values for tau and time are -----------------------------------" << endl;
+							cout << uTau << "," << lambdaTau << "," << endl;
+							cout << uTime << "," << lambdaTime << "," << endl;
+						}
 						// calculation for R'
 						Mat t1, t_2, t_3, r1, r2;
 						t1 = uTime.col(0).clone(); //current frame's U (or u1 vector)
@@ -217,38 +223,27 @@ int main(int argc, const char** argv) {
 						lambda2 = sqrt(result2[0] / result2[2]);
 						S = (Mat_<double>(1, 2) << lambda1, lambda2);
 						Mat SR; // Obtain SR matrix, and adjust with rotation vectors (step (10) of 2SR paper)
-						cv::multiply(S, RDash, SR);
+						SR = S.mul(RDash);
 
 						if (DEBUGGING_MODE) {
-							cout << "result matrix SR: " << endl << SR << endl;
-							cout << "Type of matrix SR: " << SR.type() << endl;
+							cout << "result matrix SR': " << endl << SR << endl;
+							cout << "Type of matrix SR': " << SR.type() << endl;
+							cout << "Rows and columns of SR' are: " << SR.rows << " and " << SR.cols << endl;
 						}
 
-						Mat u2T, u3T;
-						transpose(t_2, u2T);
-						transpose(t_3, u3T);
-						vector<Mat> arrays;
-						Mat transUTau;
-						arrays.push_back(u2T);
-						arrays.push_back(u3T);
-						vconcat(arrays, transUTau);
 						SR.convertTo(SR, 5); // adjust to 32F rather than double --- needs fixing later
 
-						if (DEBUGGING_MODE) {
-							cout << "transUTau vector: " << endl << transUTau << endl;
-							cout << "Type of matrix transuTau: " << transUTau.type() << endl;
-							cout << "Type of matrix Sr: " << SR.type() << endl;
-						}
-
 						//back-projection into the original RGB space
-						Mat SRFinal;
-						SRFinal = SR * transUTau;
+						Mat backProjectTau;
+						vconcat(t_2.t(), t_3.t(), backProjectTau);
+						Mat SRBackProjected = SR * backProjectTau;
 						if (DEBUGGING_MODE) {
-							cout << "SR' is then equals: " << endl << SRFinal << endl;
+							cout << "the back project vector used for multiplication is : " << endl << backProjectTau << endl;
+							cout << "Backprojected SR' is then equals: " << endl << SRBackProjected << endl;
 						}
 
 						// Obtain the SR'
-						SRDash.push_back(SRFinal);
+						SRDash.push_back(SRBackProjected);
 					}
 					// Calculate SR'1 and SR'2
 					Mat SRDashConcat;
@@ -264,23 +259,41 @@ int main(int argc, const char** argv) {
 					SR_2std = sum(SR_2Stdev)[0];
 
 					if (DEBUGGING_MODE) {
-						cout << "Size of SRDashConcat is: " << SRDashConcat.size() << endl;
+						/*cout << "Size of SRDashConcat is: " << SRDashConcat.size() << endl;
 						cout << "SR'1 is currently:" << endl << SR_1 << endl;
 						cout << "SR'1 standard deviation is: " << SR_1std << endl;
 						cout << "SR'2 is currently:" << endl << SR_2 << endl;
-						cout << "SR'2 standard deviation is: " << SR_2std << endl;
+						cout << "SR'2 standard deviation is: " << SR_2std << endl;*/
+						cout << "Current value of t is: " << t << endl;
+						cout << "therefore the current value of t - stridelength is : " << t - strideLength << endl << endl;
 					}
 					//Calculate pulse vector 
 					Mat pulseVector;
 					pulseVector = SR_1 - (SR_1std / SR_2std) * SR_2;
 
-					if (DEBUGGING_MODE) {
-						cout << "Current PulseVector before overlap-adding: " << endl << pulseVector << endl;
+					//Calculate long-term pulse vector over successive strides using overlap-adding
+					Mat temp = pulseVector - mean(pulseVector);
+
+					if (firstStride) {
+						longTermPulseVector = temp;
+						firstStride = false;
+					}
+					else {
+						longTermPulseVector.push_back(float(0));
+						int y = 0;
+						for (size_t x = t - strideLength; x < i; x++) {
+							longTermPulseVector.at<float>(x) = longTermPulseVector.at<float>(x) + temp.at<float>(y);
+							y++;
+						}
 					}
 
-					//Calculate long-term pulse vector over successive strides using overlap-adding
-					longTermPulseVector = pulseVector - mean(pulseVector);
 
+					if (DEBUGGING_MODE) {
+						cout << "Current PulseVector before overlap-adding: " << endl << pulseVector << endl;
+						cout << "Temp: " << endl << temp << endl;
+					}
+
+					SRDash.clear();
 					//if (!pulseVector.empty() && firstStride) {
 					//	longTermPulseVector = pulseVector;
 					//	longTermPulseVector = longTermPulseVector - (pulseVector - mean(pulseVector));
@@ -356,7 +369,7 @@ Mat detectAndDisplay(Mat frame) {
 	std::vector<Rect> faces;
 	std::vector<int> numDetections;
 
-	//resizing image before processing
+	//downsizing image before processing
 	const double scaleFactor = 1.0 / 7.0;
 	resize(frameClone, procFrame, cv::Size(), scaleFactor, scaleFactor);
 	//convert the image into a grayscale image which will be equalised for face detection
@@ -417,7 +430,7 @@ Rect findPoints(vector<Rect> faces, int bestIndex, double scaleFactor) {
 	double sumBX = 0;
 	double sumBY = 0;
 	//if the queue size is above a certain number we start to take the average of the frames
-	int frameWindow = 8;
+	int frameWindow = 7;
 	if (topLeftX.size() >= frameWindow) {
 
 		//Take the sum of all elements in the current frame window
@@ -495,12 +508,12 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	cv::Mat YCrCbFrame;
 	cv::Mat HSVFrame;
 	// YCrCb values used for skin detection
-	Scalar lBound = cv::Scalar(0, 133, 70);
-	Scalar uBound = cv::Scalar(255, 173, 127);
+	Scalar lBound = cv::Scalar(0, 120, 70);
+	Scalar uBound = cv::Scalar(255, 180, 130);
 	// HSV values used for skin detection
 	Scalar HSVUpper, HSVLower;
-	HSVLower = Scalar(0, 30, 70);
-	HSVUpper = Scalar(17, 170, 255);
+	HSVLower = Scalar(0, 40, 70);
+	HSVUpper = Scalar(20, 150, 255);
 
 
 	cv::cvtColor(frameC, YCrCbFrame, cv::COLOR_BGR2YCrCb);

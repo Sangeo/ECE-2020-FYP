@@ -6,12 +6,17 @@ fileToRead = 'output_file3.csv';
 M = readmatrix(fileToRead);
 x = M(:,2);
 
+
 clc; close all;
 figure(1);
-plot(x);
+frameNumber = 1:length(x);
+time = frameNumber./25;
+% x = x - mean(x);
+x = lowpass(x,3,25);
 
+plot(x);
 figure(2);
-fs = 30; %30 frames per second
+fs = 25; %30 frames per second
 L=length(x);        
 NFFT=1024;       
 X=fft(x,NFFT);       
@@ -21,3 +26,11 @@ plot(fVals,Px(1:NFFT/2),'b','LineSmoothing','on','LineWidth',1);
 title('One Sided Power Spectral Density');       
 xlabel('Frequency (Hz)')         
 ylabel('PSD');
+
+[pks,locs] = findpeaks(x,time,'MinPeakProminence', 0.25);
+peakInterval = diff(locs);
+% histogram(peakInterval,30)
+% xlabel('time')
+% ylabel('number of signal peaks received')
+
+fprintf('the average heart rate measured was: %.2f \n',(60/mean(peakInterval)))
