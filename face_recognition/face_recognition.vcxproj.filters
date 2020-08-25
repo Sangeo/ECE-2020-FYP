@@ -54,6 +54,12 @@
     <ClCompile Include="manualROI_2SR.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="skinDetectorv2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="spatialRotation_v1.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="Diphylleia Grayi.jpg">
