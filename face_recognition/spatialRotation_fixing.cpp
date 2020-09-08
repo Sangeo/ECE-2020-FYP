@@ -9,6 +9,11 @@
 */
 
 #include "opencv_helper.h"
+#include "Python.h"
+#include "matplotlibcpp.h"
+
+namespace plt = matplotlibcpp;
+
 
 using namespace cv;
 using namespace std;
@@ -33,15 +38,23 @@ Mat skinDetection(
 	Mat frameC,
 	Rect originalFaceRect);
 
-void write_CSV(string filename, vector<float> arr);
+void write_CSV(string filename, vector<float> arr, vector<float> time);
 
+
+Mat spatialRotation(
+	deque<Mat> skinFrameQ,
+	Mat longTermPulseVector,
+	int capLength);
 
 CascadeClassifier face_cascade;
-vector<float> OUTPUT_CSV_VAR;
+
 deque<double> topLeftX;
 deque<double> topLeftY;
 deque<double> botRightX;
 deque<double> botRightY;
+vector<float> timeVector;
+vector<float> OUTPUT_CSV_VAR;
+
 
 constexpr int maxColors = 3; //B,G,R
 
@@ -49,7 +62,10 @@ typedef chrono::high_resolution_clock Clock;
 typedef chrono::milliseconds milliseconds;
 
 static bool DEBUGGING_MODE = false;
-
+bool firstTime = true;
+bool firstStride = true;
+int strideLength = 45; // size of the temporal stride 
+										//(45 frames as this should capture the heart rate information)
 
 int main(int argc, const char** argv) {
 
@@ -72,26 +88,22 @@ int main(int argc, const char** argv) {
 	capture.set(CAP_PROP_FPS, 25);
 	capture.set(CAP_PROP_FRAME_WIDTH, 1280);
 	capture.set(CAP_PROP_FRAME_HEIGHT, 720);
-	capture.set(CAP_PROP_AUTO_EXPOSURE, 1);
+	capture.set(CAP_PROP_AUTO_EXPOSURE, 0);
 	capture.set(CAP_PROP_AUTOFOCUS, 1);
-	capture.set(CAP_PROP_AUTO_WB, 1);
+	capture.set(CAP_PROP_AUTO_WB, 0);
 
 	cout << "CAPTURE FOMRAT IS: " << capture.get(CAP_PROP_FORMAT) << endl;
 
-	int capLength = capture.get(CAP_PROP_FPS) * 12; //get 8 seconds worth of information
-	int strideLength = 45; // size of the temporal stride 
-										//(10 frames as this should capture the heart rate information)
-	bool firstTime = true;
-	bool firstStride = true;
-
+	int capLength = capture.get(CAP_PROP_FPS) * 10; //get 8 seconds worth of information
+	
 	Mat newFrame;
 	Mat skinFrame;
 	deque<Mat> skinFrameQ;
 	Mat longTermPulseVector;
-	deque<Mat> tempPulseVector;
-
+	
 	while (true) {
 
+		Clock::time_point start = Clock::now();
 		//-----Get buffer of skin pixels with a decent length (500 frames)
 		//if the current capture is available, add it to the newFrame matrix
 		if (capture.read(newFrame)) {
@@ -101,8 +113,12 @@ int main(int argc, const char** argv) {
 
 				//queue if the skinFrame is ready to be pushed into the queue
 				if (!skinFrame.empty()) skinFrameQ.push_back(skinFrame);
+				
 			}
 		}
+		Clock::time_point end = Clock::now();
+		auto ms = chrono::duration_cast<milliseconds>(end - start);
+		timeVector.push_back(ms.count());
 
 		//-----Do the processing required on the skin pixels using spatial subspace rotation (2SR) algorithm 
 		//	dump the initial frames as they are usually not stable
@@ -110,254 +126,32 @@ int main(int argc, const char** argv) {
 
 			skinFrameQ.clear();
 			firstTime = false;
+			timeVector.clear();
 		}
-
 		//grab skin pixel information from the queue and process the data
 		else if (skinFrameQ.size() > capLength) {
 			if (DEBUGGING_MODE) {
 				cout << "There are: " << skinFrameQ.size() << " frames stored in the queue." << endl;
 				cout << ".................................." << endl;
 			}
-			deque<Mat> eigValArray; // This will contain the eigenvalues
-			deque<Mat> eigVecArray; // This will contain the eigenvectors
-			vector<Mat> SRDash;
-			// for each frame in the queue 
-			for (size_t i = 1; i <= capLength; i++) {
-				//our skinFrames are queued in a deque, which can be accessed using a for loop
-				//this retrieves a single skin frame from the queue, but this will contain many zeros
-				Mat temp = skinFrameQ.front().clone();
-				skinFrameQ.pop_front();
-				if (DEBUGGING_MODE) {
-					//cout << "The skinFrame is :" << endl << temp << endl;
-				}
-				//for each skinFrame, split the skin pixles into 3 channels, blue, green and red.
-				vector<Mat> colorVector;
-				split(temp, colorVector);
-				// colorVector has size 3xN, 
-				// colorVector[0] contains all blue pixels
-				// colorVector[1] contains all green pixels 
-				// colorVector[2] contains all red pixels 
+			longTermPulseVector = spatialRotation(skinFrameQ, longTermPulseVector, capLength);
 
-				/**code used to get rid of the unnecessary zeros**/
-				// note: we only need to use one mask here since skin pixel values cannot be (0,0,0)
-				vector<Point> mask;
-				findNonZero(colorVector[0], mask);
-				Mat bVal, gVal, rVal;
-				for (Point p : mask) {
-					bVal.push_back(colorVector[0].at<uchar>(p)); // collect blue values
-					gVal.push_back(colorVector[1].at<uchar>(p)); // collect green values
-					rVal.push_back(colorVector[2].at<uchar>(p)); // collect red values
-				}
-				
-				Mat colorValues; //colorValues is a Nx3 matrix
-				vector<Mat> matrices = { rVal, gVal, bVal };
-				hconcat(matrices, colorValues);
-				if (DEBUGGING_MODE) {
-					//cout << "The concatenanted skinFrame (ignoring zeros) is : " << endl << colorValues << endl;
-				}
-				// identity of the colorValues matirx
-				int rows = colorValues.rows; // this will be the number of skin-pixels N
-				int cols = colorValues.cols; // this will be the 3 color channels (r,g,b)
-
-				Mat vTv; //Transposed colorValues * colorValues, normalised matrix
-				mulTransposed(colorValues, vTv, true);
-				// Divide the multiplied vT*v vector by the total number of skin-pixels
-				double N = rows; // number of skin-pixels
-				Mat C = vTv / N;
-				Mat eigVal, eigVec;
-				cv::eigen(C, eigVal, eigVec);	//computes the eigenvectors and eigenvalues used 
-												//for our spatial subspace rotation calculations
-
-
-				////sort the eigen values from largest to lowest (so as to get the diagonal elements)
-				//Mat CPtr = C.clone();
-				//CPtr.convertTo(CPtr, 6);
-				//arma::mat arma_C(reinterpret_cast<double*>(CPtr.data), CPtr.rows, CPtr.cols);
-				//arma::mat arma_U, arma_lambda;
-				//arma::qr(arma_U, arma_lambda, arma_C);
-
-				////convert the QR decomposed algorithms back to normal
-				////use the same dimensions as they are going to be 3x3 full rank matrices.
-				//cv::Mat cv_C(CPtr.rows, CPtr.cols, CV_64FC1, arma_C.memptr());
-				//cv::Mat cv_U(CPtr.rows, CPtr.cols, CV_64FC1, arma_U.memptr());
-				//transpose(cv_U, cv_U);
-				//cv::Mat cv_lambda(CPtr.rows, CPtr.cols, CV_64FC1, arma_lambda.memptr());
-				////transpose(cv_lambda, cv_lambda);
-
-				//if (DEBUGGING_MODE) {
-				//	cout << "Original C: " << C << endl;
-				//	cout << "Original C type: " << C.type() << endl;
-				//	cout << "CPtr type :" << CPtr.type() << endl;
-				//	cout << "Armadillo's version of C: " << endl << arma_C << endl;
-				//	cout << "QR Decomposition of U: " << endl << arma_U << endl;
-				//	cout << "QR Decomposition of lambda: " << endl << arma_lambda << endl;
-				//	cout << "Converted back C: " << endl << cv_C << endl;
-				//	cout << "Converted back C: " << endl << cv_U << endl;
-				//	cout << "Converted back C: " << endl << cv_lambda << endl;
-
-				//}
-
-				Mat sortEigVal;
-				cv::sort(eigVal, sortEigVal, cv::SortFlags::SORT_EVERY_COLUMN + cv::SortFlags::SORT_DESCENDING);
-
-				if (DEBUGGING_MODE) {
-					cout << "C" << endl << C << endl;
-					/*cout << "eigVal" << endl << eigVal << endl;
-					cout << "sortEigVal" << endl << sortEigVal << endl;
-					cout << "eigVec" << endl << eigVec << endl;*/
-				}
-
-				/* ~~~~temporal stride analysis~~~~ */
-				//Within the stride, we will analyze the temporal changes in the eigenvector subspace.
-				eigValArray.push_back(sortEigVal.clone()); // This will contain the first frame's content for eigenvalues
-				eigVecArray.push_back(eigVec.clone()); // This will contain the first frame's content for eigenvectors
-				Mat uTau, lambdaTau;
-				Mat uTime, lambdaTime;
-				Mat RDash, S; //R' and S
-
-				int tempTau = i - strideLength + 1;
-				if (tempTau > 0) {
-					uTau = eigVecArray[tempTau - 1].clone();
-					lambdaTau = eigValArray[tempTau - 1].clone();
-
-					int t; //this will need to be re-used for t 
-					for (t = tempTau; t < i; t++) {
-						//current values of the eigenvector and eigenvalues
-						uTime = eigVecArray[t - 1].clone();
-						lambdaTime = eigValArray[t - 1].clone();
-
-						if (DEBUGGING_MODE) {
-							cout << "Current values for tau and time are -----------------------------------" << endl;
-							cout << "uTau and lambdaTau" <<  uTau << "," << endl<< lambdaTau << "," << endl;
-							cout << "uTime and lambdaTime" << uTime << "," << endl << lambdaTime << "," << endl;
-							cout << endl ;
-						}
-				
-						// calculation for R'
-						Mat t1, t_2, t_3, r1, r2;
-						t1 = uTime.col(0).clone(); //current frame's U (or u1 vector)
-						cv::transpose(t1, t1);
-						t_2 = uTau.col(1).clone(); //first frame's u2
-						r1 = t1 * t_2;
-						t_3 = uTau.col(2).clone(); //first frame's u3
-						r2 = t1 * t_3;
-						double result[2] = { sum(r1)[0],sum(r2)[0] };
-						RDash = (Mat_<double>(1, 2) << result[0], result[1]); // obtains the R' values required to calculate the SR'
-						if (DEBUGGING_MODE) {
-							/*cout << endl << "R'(1) = " << r1 << "and R'(2) =" << r2 << endl;
-							cout << "RDash is equals: ......................................." << endl << RDash << endl;*/
-						}
-						// calculation for S
-						Mat temp, tau2, tau3;
-						temp = lambdaTime.row(0).clone(); //lambda t1
-						tau2 = lambdaTau.row(1).clone();  //lambda tau2
-						tau3 = lambdaTau.row(2).clone();  //lambda tau3
-
-						double result2[3] = { sum(temp)[0],sum(tau2)[0],sum(tau3)[0] };
-						double lambda1, lambda2;
-						lambda1 = sqrt(result2[0] / result2[1]);
-						lambda2 = sqrt(result2[0] / result2[2]);
-						S = (Mat_<double>(1, 2) << lambda1, lambda2);
-						Mat SR = S.mul(RDash);; // Obtain SR matrix, and adjust with rotation vectors (step (10) of 2SR paper)
-						
-						if (DEBUGGING_MODE) {
-							cout << "result matrix S': " << endl << S << endl;
-							cout << "result matrix SR': " << endl << SR << endl;
-							cout << "Type of matrix SR': " << SR.type() << endl;
-							cout << "Rows and columns of SR' are: " << SR.rows << " and " << SR.cols << endl;
-						}
-
-						SR.convertTo(SR, 5); // adjust to 32F rather than double --- needs fixing later
-
-						//back-projection into the original RGB space
-						Mat backProjectTau;
-						vconcat(t_2.t(), t_3.t(), backProjectTau);
-						Mat SRBackProjected = SR * backProjectTau;
-						if (DEBUGGING_MODE) {
-							cout << "the back project vector used for multiplication is : " << endl << backProjectTau << endl;
-							cout << "Backprojected SR' is then equals: " << endl << SRBackProjected << endl;
-
-						}
-						// Obtain the SR'
-						SRDash.push_back(SRBackProjected);
-					}
-					// Calculate SR'1 and SR'2
-					Mat SRDashConcat;
-					vconcat(SRDash, SRDashConcat);
-					Mat SR_1, SR_2;
-					SR_1 = SRDashConcat.col(0);
-					SR_2 = SRDashConcat.col(1);
-					Scalar SR_1Mean, SR_2Mean, SR_1Stdev, SR_2Stdev;
-					cv::meanStdDev(SR_1, SR_1Mean, SR_1Stdev);
-					cv::meanStdDev(SR_2, SR_2Mean, SR_2Stdev);
-					float SR_1std, SR_2std;
-					SR_1std = sum(SR_1Stdev)[0];
-					SR_2std = sum(SR_2Stdev)[0];
-
-					if (DEBUGGING_MODE) {
-						/*cout << "Size of SRDashConcat is: " << SRDashConcat.size() << endl;
-						cout << "SR'1 is currently:" << endl << SR_1 << endl;
-						cout << "SR'1 standard deviation is: " << SR_1std << endl;
-						cout << "SR'2 is currently:" << endl << SR_2 << endl;
-						cout << "SR'2 standard deviation is: " << SR_2std << endl;*/
-
-						cout << "Current value of t is: " << t << endl;
-						cout << "Current value of i is: " << i << endl;
-						cout << "therefore the current value of t - stridelength + 1 is : " << t - strideLength << endl << endl;
-					}
-					//Calculate pulse vector 
-					Mat pulseVector;
-					pulseVector = SR_1 - (SR_1std / SR_2std) * SR_2;
-
-					//Calculate long-term pulse vector over successive strides using overlap-adding
-					//longTermPulseVector.push_back(pulseVector - mean(pulseVector));
-					//cout << "Current Pulse Vector Length " << pulseVector.rows << endl;
-					Mat tempPulse = pulseVector - mean(pulseVector);
-
-					if (firstStride) {
-						longTermPulseVector = tempPulse;
-						firstStride = false;
-					}
-					else {
-						longTermPulseVector.push_back(float(0));
-						int y = 0;
-						for (size_t x = t - strideLength; x < i; x++) {
-
-							longTermPulseVector.at<float>(x) = longTermPulseVector.at<float>(x) + tempPulse.at<float>(y);
-							y++;
-						}
-					}
-
-					if (DEBUGGING_MODE) {
-						cout << "Current PulseVector before overlap-adding: " << endl << pulseVector << endl;
-						cout << "Temp: " << endl << tempPulse << endl;
-					}
-
-					SRDash.clear();
-
-					if (DEBUGGING_MODE) {
-						cout << "Current Long-term Pulse Vector :" << endl << longTermPulseVector << endl;
-
-					}
-
-				}
-
-			}
-			//clean memory registers
-			eigVecArray.clear();
-			eigValArray.clear();
-			SRDash.clear();
 		}
-
+		
 		if (!longTermPulseVector.empty()) {
 			for (int i = 0; i < longTermPulseVector.rows; i++) {
 				OUTPUT_CSV_VAR.push_back(longTermPulseVector.at<float>(i));
 			}
 
-			write_CSV("output_file3.csv", OUTPUT_CSV_VAR);
-
+			write_CSV("output_file3.csv", OUTPUT_CSV_VAR,timeVector);
 			cout << "the program has finished running for the capture of one stroll of frames" << endl;
-
+			
+			medianBlur(OUTPUT_CSV_VAR, OUTPUT_CSV_VAR, 5);
+			
+			plt::figure(0);
+			plt::plot(OUTPUT_CSV_VAR);
+			plt::show();
+			
 			break;
 		}
 		//return the pulse 
@@ -404,9 +198,32 @@ Mat detectAndDisplay(Mat frame) {
 
 		if (!faceROI.empty()) {
 			// draws on the current face region of interest
-			rectangle(frameClone, faceROI, Scalar(0, 0, 255), 1, LINE_4, 0);
+			// draws on the current face region of interest
+			Point2i tempTL, tempBR;
+			tempTL.x = faceROI.tl().x - 40;
+			if (tempTL.x <= 0) {
+				tempTL.x = faceROI.tl().x;
+			}
+			tempTL.y = faceROI.tl().y - 40;
+			if (tempTL.y <= 0) {
+				tempTL.y = faceROI.tl().y;
+			}
+			tempBR.x = faceROI.br().x + 40;
+			if (tempBR.x >= frameClone.cols) {
+				tempBR.x = faceROI.br().x;
+				std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
+			}
+			tempBR.y = faceROI.br().y + 40;
+			if (tempBR.y >= frameClone.rows) {
+				tempBR.y = faceROI.br().y;
+				std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;
+			}
 
-			trueROI = skinDetection(frameClone, faceROI);
+			Rect tempRect(tempTL, tempBR);
+			rectangle(frameClone, tempRect, Scalar(0, 0, 255), 1, LINE_4, 0);
+
+
+			trueROI = skinDetection(frameClone, tempRect);
 		}
 	}
 	imshow("frame", frameClone);
@@ -516,54 +333,39 @@ Rect findPoints(vector<Rect> faces, int bestIndex, double scaleFactor) {
 */
 Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 
-	cv::Mat normalFace;
-	cv::Mat faceRegion;
-	cv::Mat faceRegion2;
-	cv::Mat YCrCbFrame;
-	cv::Mat HSVFrame;
-	// YCrCb values used for skin detection
-	Scalar lBound = cv::Scalar(0, 100, 60);
-	Scalar uBound = cv::Scalar(255, 180, 160);
-	// HSV values used for skin detection
-	Scalar HSVUpper, HSVLower;
-	HSVLower = Scalar(0, 30, 80);
-	HSVUpper = Scalar(20, 180, 255);
+	Mat frameFace = frameC(originalFaceRect).clone();
+	//shrink the region of interest to a face centric region
+	Point2i tempTL, tempBR;
+	tempTL.x = 60;
+	tempTL.y = 60;
+	tempBR.x = frameFace.rows - 60;
+	tempBR.y = frameFace.cols - 140;
+	Rect tempRect(tempTL, tempBR);
+	frameFace = frameFace(tempRect);
 
+	Mat yccFace, imgFilter;
+	cv::cvtColor(frameFace, yccFace, COLOR_BGR2YCrCb, CV_8U);
+	int min_cr, min_cb, max_cr, max_cb;
+	min_cr = 133;
+	max_cr = 173;
+	min_cb = 77;
+	max_cb = 127;
+	
+	//low-pass spatial filtering to remove high frequency content
+	blur(yccFace, yccFace, Size(5,5));
 
-	cv::cvtColor(frameC, YCrCbFrame, cv::COLOR_BGR2YCrCb);
-	cv::cvtColor(frameC, HSVFrame, cv::COLOR_BGR2HSV);
-	//use two masks, one to detect for skin, one to detect for valid skin values
-	cv::Mat skinMask;
-	cv::Mat skinMask2;
-	cv::Mat skin;
-	Mat trialMask;
-	//medianBlur(YCrCbFrame, YCrCbFrame, 5);
-	//medianBlur(HSVFrame, HSVFrame, 5);
-	//zone out faceRegion
-	faceRegion = YCrCbFrame(originalFaceRect).clone();
-	cv::inRange(faceRegion, lBound, uBound, skinMask);
-	faceRegion2 = HSVFrame(originalFaceRect).clone();
-	cv::inRange(faceRegion2, HSVLower, HSVUpper, skinMask2);
+	//colour segmentation
+	cv::inRange(yccFace, Scalar(0, min_cr, min_cb), Scalar(255, max_cr, max_cb), imgFilter);
 
-	/*GaussianBlur(skinMask,skinMask,Size(5,5),0,0,4);
-	GaussianBlur(skinMask2,skinMask2,Size(5,5),0,0,4);*/
+	//Morphology on the imgFilter to remove noise introduced by colour segmentation
+	Mat kernel = Mat::ones(Size(7, 7), CV_8U);
+	cv::morphologyEx(imgFilter, imgFilter, MORPH_OPEN, kernel, Point(-1, -1), 2);
 
-	Mat kernel = Mat::ones(Size(10, 10), CV_8U);
+	Mat skin;
 
-	bitwise_and(skinMask, skinMask2, trialMask, noArray());
-
-	//apply morphology to image to remove noise and ensure cleaner frame
-	cv::morphologyEx(trialMask, trialMask, MORPH_OPEN, kernel);
-
-	medianBlur(trialMask, trialMask, 7);
-
-	//for the real frame output we use the camera feed
-	normalFace = frameC(originalFaceRect).clone();
-
-	//bitwise and to get the actual skin color back;
-	cv::bitwise_and(normalFace, normalFace, skin, trialMask);
-
-	if (!trialMask.empty()) imshow("trialMask", trialMask);
+	//return our detected skin values
+	frameFace.copyTo(skin, imgFilter);
+	imshow("SKIN", skin);
 
 	return skin;
 }
@@ -572,11 +374,212 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	Input: filename, vector<double> of numbers
 	Output: prints to csv file the results
 */
-void write_CSV(string filename, vector<float> arr) {
+void write_CSV(string filename, vector<float> arr, vector<float> time) {
 	ofstream myfile;
 	myfile.open(filename.c_str());
 	int vsize = arr.size();
 	for (int n = 0; n < vsize; n++) {
-		myfile << n << ";" << arr[n] << endl;
+		myfile << n << ";" << arr[n] << ";" << time[n] << endl;
 	}
+}
+
+
+
+/** function: spatialRotation
+	Input: queue of skin frames
+	output: longterm pulse vector 1D.
+
+*/
+
+Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLength) {
+	deque<Mat> eigValArray; // This will contain the eigenvalues
+	deque<Mat> eigVecArray; // This will contain the eigenvectors
+	vector<Mat> SRDash;
+	// for each frame in the queue 
+	for (size_t i = 1; i <= capLength; i++) {
+		//our skinFrames are queued in a deque, which can be accessed using a for loop
+		//this retrieves a single skin frame from the queue, but this will contain many zeros
+		Mat temp = skinFrameQ.front().clone();
+		skinFrameQ.pop_front();
+		if (DEBUGGING_MODE) {
+			//cout << "The skinFrame is :" << endl << temp << endl;
+		}
+		//for each skinFrame, split the skin pixles into 3 channels, blue, green and red.
+		vector<Mat> colorVector;
+		split(temp, colorVector);
+		// colorVector has size 3xN, 
+		// colorVector[0] contains all blue pixels
+		// colorVector[1] contains all green pixels 
+		// colorVector[2] contains all red pixels 
+
+		/**code used to get rid of the unnecessary zeros**/
+		// note: we only need to use one mask here since skin pixel values cannot be (0,0,0)
+		vector<Point> mask;
+		findNonZero(colorVector[0], mask);
+		Mat bVal, gVal, rVal;
+		for (Point p : mask) {
+			bVal.push_back(colorVector[0].at<uchar>(p)); // collect blue values
+			gVal.push_back(colorVector[1].at<uchar>(p)); // collect green values
+			rVal.push_back(colorVector[2].at<uchar>(p)); // collect red values
+		}
+
+		Mat colorValues; //colorValues is a Nx3 matrix
+		vector<Mat> matrices = { rVal, gVal, bVal };
+		hconcat(matrices, colorValues);
+		if (DEBUGGING_MODE) {
+			//cout << "The concatenanted skinFrame (ignoring zeros) is : " << endl << colorValues << endl;
+		}
+		// identity of the colorValues matirx
+		int rows = colorValues.rows; // this will be the number of skin-pixels N
+		int cols = colorValues.cols; // this will be the 3 color channels (r,g,b)
+
+		Mat vTv; //Transposed colorValues * colorValues, normalised matrix
+		mulTransposed(colorValues, vTv, true);
+		// Divide the multiplied vT*v vector by the total number of skin-pixels
+		double N = rows; // number of skin-pixels
+		Mat C = vTv / N;
+		Mat eigVal, eigVec;
+		cv::eigen(C, eigVal, eigVec);	//computes the eigenvectors and eigenvalues used 
+										//for our spatial subspace rotation calculations
+
+		Mat sortEigVal;
+		cv::sort(eigVal, sortEigVal, cv::SortFlags::SORT_EVERY_COLUMN + cv::SortFlags::SORT_DESCENDING);
+
+		if (DEBUGGING_MODE) {
+			cout << "C" << endl << C << endl;
+			/*cout << "eigVal" << endl << eigVal << endl;
+			cout << "sortEigVal" << endl << sortEigVal << endl;
+			cout << "eigVec" << endl << eigVec << endl;*/
+		}
+
+		/* ~~~~temporal stride analysis~~~~ */
+		//Within the stride, we will analyze the temporal changes in the eigenvector subspace.
+		eigValArray.push_back(sortEigVal.clone()); // This will contain the first frame's content for eigenvalues
+		eigVecArray.push_back(eigVec.clone()); // This will contain the first frame's content for eigenvectors
+		Mat uTau, lambdaTau;
+		Mat uTime, lambdaTime;
+		Mat RDash, S; //R' and S
+
+		int tempTau = i - strideLength + 1;
+		if (tempTau > 0) {
+			uTau = eigVecArray[tempTau - 1].clone();
+			lambdaTau = eigValArray[tempTau - 1].clone();
+
+			int t; //this will need to be re-used for t 
+			for (t = tempTau; t < i; t++) {
+				//current values of the eigenvector and eigenvalues
+				uTime = eigVecArray[t - 1].clone();
+				lambdaTime = eigValArray[t - 1].clone();
+
+				if (DEBUGGING_MODE) {
+					cout << "Current values for tau and time are -----------------------------------" << endl;
+					cout << "uTau and lambdaTau" << uTau << "," << endl << lambdaTau << "," << endl;
+					cout << "uTime and lambdaTime" << uTime << "," << endl << lambdaTime << "," << endl;
+					cout << endl;
+				}
+
+				// calculation for R'
+				Mat t1, t_2, t_3, r1, r2;
+				t1 = uTime.col(0).clone(); //current frame's U (or u1 vector)
+				cv::transpose(t1, t1);
+				t_2 = uTau.col(1).clone(); //first frame's u2
+				r1 = t1 * t_2;
+				t_3 = uTau.col(2).clone(); //first frame's u3
+				r2 = t1 * t_3;
+				double result[2] = { sum(r1)[0],sum(r2)[0] };
+				RDash = (Mat_<double>(1, 2) << result[0], result[1]); // obtains the R' values required to calculate the SR'
+				if (DEBUGGING_MODE) {
+					/*cout << endl << "R'(1) = " << r1 << "and R'(2) =" << r2 << endl;
+					cout << "RDash is equals: ......................................." << endl << RDash << endl;*/
+				}
+				// calculation for S
+				Mat temp, tau2, tau3;
+				temp = lambdaTime.row(0).clone(); //lambda t1
+				tau2 = lambdaTau.row(1).clone();  //lambda tau2
+				tau3 = lambdaTau.row(2).clone();  //lambda tau3
+
+				double result2[3] = { sum(temp)[0],sum(tau2)[0],sum(tau3)[0] };
+				double lambda1, lambda2;
+				lambda1 = sqrt(result2[0] / result2[1]);
+				lambda2 = sqrt(result2[0] / result2[2]);
+				S = (Mat_<double>(1, 2) << lambda1, lambda2);
+				Mat SR = S.mul(RDash);; // Obtain SR matrix, and adjust with rotation vectors (step (10) of 2SR paper)
+
+				if (DEBUGGING_MODE) {
+					cout << "result matrix S': " << endl << S << endl;
+					cout << "result matrix SR': " << endl << SR << endl;
+					cout << "Type of matrix SR': " << SR.type() << endl;
+					cout << "Rows and columns of SR' are: " << SR.rows << " and " << SR.cols << endl;
+				}
+
+				SR.convertTo(SR, 5); // adjust to 32F rather than double --- needs fixing later
+
+				//back-projection into the original RGB space
+				Mat backProjectTau;
+				vconcat(t_2.t(), t_3.t(), backProjectTau);
+				Mat SRBackProjected = SR * backProjectTau;
+				if (DEBUGGING_MODE) {
+					cout << "the back project vector used for multiplication is : " << endl << backProjectTau << endl;
+					cout << "Backprojected SR' is then equals: " << endl << SRBackProjected << endl;
+				}
+				// Obtain the SR'
+				SRDash.push_back(SRBackProjected);
+			}
+			// Calculate SR'1 and SR'2
+			Mat SRDashConcat;
+			vconcat(SRDash, SRDashConcat);
+			Mat SR_1, SR_2;
+			SR_1 = SRDashConcat.col(0);
+			SR_2 = SRDashConcat.col(1);
+			Scalar SR_1Mean, SR_2Mean, SR_1Stdev, SR_2Stdev;
+			cv::meanStdDev(SR_1, SR_1Mean, SR_1Stdev);
+			cv::meanStdDev(SR_2, SR_2Mean, SR_2Stdev);
+			float SR_1std, SR_2std;
+			SR_1std = sum(SR_1Stdev)[0];
+			SR_2std = sum(SR_2Stdev)[0];
+
+			if (DEBUGGING_MODE) {
+				cout << "Current value of t is: " << t << endl;
+				cout << "Current value of i is: " << i << endl;
+				cout << "therefore the current value of t - stridelength + 1 is : " << t - strideLength << endl << endl;
+			}
+			//Calculate pulse vector 
+			Mat pulseVector;
+			pulseVector = SR_1 - (SR_1std / SR_2std) * SR_2;
+
+			//Calculate long-term pulse vector over successive strides using overlap-adding
+			Mat tempPulse = pulseVector - mean(pulseVector);
+
+			if (firstStride) {
+				longTermPulseVector = tempPulse;
+				firstStride = false;
+			}
+			else {
+				longTermPulseVector.push_back(float(0));
+				int y = 0;
+				for (size_t x = t - strideLength; x < i; x++) {
+
+					longTermPulseVector.at<float>(x) = longTermPulseVector.at<float>(x) + tempPulse.at<float>(y);
+					y++;
+				}
+			}
+
+			if (DEBUGGING_MODE) {
+				cout << "Current PulseVector before overlap-adding: " << endl << pulseVector << endl;
+				cout << "Temp: " << endl << tempPulse << endl;
+			}
+			SRDash.clear();
+
+			if (DEBUGGING_MODE) {
+				cout << "Current Long-term Pulse Vector :" << endl << longTermPulseVector << endl;
+
+			}
+		}
+	}
+	//clean memory registers
+	eigVecArray.clear();
+	eigValArray.clear();
+	SRDash.clear();
+
+	return longTermPulseVector;
 }
