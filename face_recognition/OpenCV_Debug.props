@@ -3,15 +3,17 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <IncludePath>C:\Users\jerry\Documents\OpenCV\sources\data\haarcascades;C:\Users\jerry\Documents\OpenCV\sources\modules\objdetect\include\;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\jerry\boost_1_73_0;C:\Users\jerry\gnuplot-iostream;C:\Users\jerry\Documents\OpenCV\sources\data\haarcascades;C:\Users\jerry\Documents\OpenCV\sources\modules\objdetect\include\;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\jerry\AppData\Local\Programs\Python\Python38-32\Lib\site-packages;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(OPENCV_DIR)\..\..\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Python38\Lib;C:\Python38\include;$(OPENCV_DIR)\..\..\include;C:\matplotlib\matplotlib-cpp;C:\Python38\Lib\site-packages\numpy\core\include;C:\Users\jerry\Downloads\dlib-19.21</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>$(OPENCV_DIR)\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>opencv_world430.lib;opencv_world430d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\msys64\mingw64\lib;C:\Users\jerry\Downloads\mathsLibrary;$(OPENCV_DIR)\lib;C:\Python38\libs;C:\Users\jerry\Downloads\dlib-build\dlib\Release</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opencv_world430.lib;opencv_world430d.lib;libblas.lib;liblapack.lib;python38.lib;dlib19.21.0_release_64bit_msvc1927.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup />
