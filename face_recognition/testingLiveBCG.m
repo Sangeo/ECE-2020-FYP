@@ -2,7 +2,7 @@
 %this file wll plot two plots, one of the x raw values against each frame
 %number, and then the next is the one sided power spectral density function
 clear all;
-fileToRead = 'rBCG_analysis.xlsm';
+fileToRead = 'rBCG_Live_analysis.xlsm';
 M = readmatrix(fileToRead,'Sheet',2);
 x = M(:,3);
 t = M(:,1);
@@ -15,7 +15,7 @@ t1 = t1 - t1(1);
 clc; close all;
 figure(1);
 frameNumber = 1:length(x);
-time = t1;
+time = t1./1000;
 % fs = floor(1/mean(diff(t1/1000)));
 % x = x - mean(x);
 % x = lowpass(x,3,fs);
@@ -26,7 +26,7 @@ fs = 29;
 xMat = zeros(rows,cols);
 sumSig = zeros(rows,cols);
 hold on;
-for i = 1:cols-2
+for i = 1:cols-4
     xMat(:,i) = M(:,i+2);
     plot(time,xMat(:,i));
     sigMat(:,i) = xMat(:,i)-mean(xMat(:,i));
@@ -40,8 +40,8 @@ figure(2)
 hold on;
 
 avgSig = sumSig(:,end)./(cols-2);
-time = time(300:end-100);
-avgSig = avgSig(300:end-100);
+time = time(1:end);
+avgSig = avgSig(1:end);
 plot(time,avgSig);
 
 xlabel('time (s)');
