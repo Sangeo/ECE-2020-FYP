@@ -7,26 +7,12 @@ using namespace cv;
 using namespace std;
 
 
-void detectAndDisplay(Mat frame, int c);
+void detectAndDisplay(Mat frame,int c);
 void write_CSV(string filename, vector<double> arr, double fps);
 vector<double> OUTPUT_CSV_VAR;
-CascadeClassifier face_cascade;
 
 
-int main(int argc, const char** argv) {
-	CommandLineParser parser(argc, argv,
-		"{help h||}"
-		"{face_cascade|data/haarcascades/haarcascade_frontalface_alt.xml|Path to face cascade.}"
-		"{camera|0|Camera device number.}");
-	parser.about("\nPress Esc to quit program\nThis program demonstrates signal decomposition by color in openCV with facial recognition in a video stream");
-	parser.printMessage();
-	//-- 1. Load the cascades
-	String face_cascade_name = samples::findFile(parser.get<String>("face_cascade"));
-	if (!face_cascade.load(face_cascade_name))
-	{
-		cout << "--(!)Error loading face cascade\n";
-		return -1;
-	};
+int main() {
 
 	//-- 2. Read the video stream
 	cv::VideoCapture capture(0); //inputs into the Mat frame as CV_8UC3 format (unsigned integer)
@@ -50,7 +36,7 @@ int main(int argc, const char** argv) {
 	{
 		if (capture.read(frame))
 		{
-			detectAndDisplay(frame, color_sel);
+			detectAndDisplay(frame,color_sel);
 		}
 
 		if (cv::waitKey(1) >= 0)
@@ -68,19 +54,21 @@ int main(int argc, const char** argv) {
 void detectAndDisplay(Mat frame, int cSel) {
 
 	Mat frameClone = frame.clone();
-	//set a region of interest in the center of the frame
-	
-	Rect faceROI = Rect(1280 / 3, 720 / 3, 200, 100);
+	////set a region of interest in the center of the frame
+	//const double scaleFactor = 1.0 / 7;
+	//resize(frameClone, frameClone, cv::Size(), scaleFactor, scaleFactor);
+	Size frameSize = frameClone.size();
+
+	Rect faceROI = Rect(1280/3,720/3,200,100);
 
 	rectangle(frameClone, faceROI, Scalar(0, 0, 255), 1, LINE_4, 0);
-
+	
 	imshow("frame", frameClone);
 	Mat procFrame = frame(faceROI);
 	Mat colorImg;
 	vector<Mat> temp;
 	split(procFrame, temp);//resplits the channels (extracting the color green for default/testing cases)
 	colorImg = temp[cSel - 1];
-
 	Scalar averageColor = mean(temp[cSel - 1]); //takes the average of the color along a selected spectrum B/R/G
 	double s = sum(averageColor)[0];
 	OUTPUT_CSV_VAR.push_back(s);
