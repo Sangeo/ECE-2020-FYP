@@ -30,19 +30,7 @@
     <ClCompile Include="skinDetector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="refineFaceRecog.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="manualFaceROI.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="queueFrames.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="smoothROI.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="skinROI_DNU.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="spatialRotation_fixing.cpp">
@@ -60,25 +48,10 @@
     <ClCompile Include="spatialRotation_v1.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="faceTracking.cpp">
+    <ClCompile Include="manualROI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="rBCG_trial.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Downloads\dlib-19.21\dlib\all\source.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="rBCG_basics.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="opticalFlow.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="rBCG_pointForm.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="makeVideo.cpp">
+    <ClCompile Include="enhanced_face_recog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
