@@ -27,13 +27,37 @@
     <ClCompile Include="multi_processing.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="enhanced_face_recog.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="skinDetector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="manualROI.cpp">
+    <ClCompile Include="refineFaceRecog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="manualFaceROI.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="queueFrames.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="smoothROI.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="skinROI_DNU.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="spatialRotation_fixing.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="spatialRotation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="manualROI_2SR.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="skinDetectorv2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="spatialRotation_v1.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

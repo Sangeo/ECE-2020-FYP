@@ -3,15 +3,16 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <IncludePath>C:\Users\jerry\Documents\OpenCV\sources\data\haarcascades;C:\Users\jerry\Documents\OpenCV\sources\modules\objdetect\include\;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\jerry\boost_1_73_0;C:\Users\jerry\gnuplot-iostream;C:\Users\jerry\vcpkg\installed\x86-windows\include\python3.7;C:\Users\jerry\Documents\OpenCV\sources\data\haarcascades;C:\Program Files %28x86%29\Microsoft Visual Studio\Shared\Python37_64\Lib\site-packages;C:\Users\jerry\Documents\OpenCV\sources\modules\objdetect\include\;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\jerry\AppData\Local\Programs\Python\Python38-32\Lib\site-packages;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(OPENCV_DIR)\..\..\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\jerry\Downloads\armadillo-9.900.2\include;$(OPENCV_DIR)\..\..\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>$(OPENCV_DIR)\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>opencv_world430.lib;opencv_world430d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\msys64\mingw64\lib;C:\Users\jerry\Downloads\mathsLibrary;$(OPENCV_DIR)\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opencv_world430.lib;opencv_world430d.lib;libblas.lib;liblapack.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup />

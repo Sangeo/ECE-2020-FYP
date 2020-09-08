@@ -3,9 +3,11 @@
 
 */
 #include "opencv_helper.h"
+using namespace cv;
 
 cv::CascadeClassifier faceCascade;
 void detectAndDisplay(cv::Mat f,cv::Scalar vec, cv::Scalar vec2,int useHSV);
+Mat skinDetection(Mat frameC, Rect originalFaceRect, Scalar lBound, Scalar uBound);
 
 int main(int argc, const char** argv) {
 	//Introducing the module
@@ -137,4 +139,57 @@ void detectAndDisplay(cv::Mat frame, cv::Scalar lBound, cv::Scalar uBound, int u
 	//imshow("Camera", frameClone);
 	//cv:print(skinMask);
 	
+}
+
+/** Refined skin detection
+
+*/
+
+Mat skinDetection(Mat frameC, Rect originalFaceRect, Scalar lBound, Scalar uBound) {
+
+	cv::Mat normalFace;
+	cv::Mat faceRegion;
+	cv::Mat faceRegion2;
+	cv::Mat YCrCbFrame;
+	cv::Mat HSVFrame;
+
+	cv::cvtColor(frameC, YCrCbFrame, cv::COLOR_BGR2YCrCb);
+	cv::cvtColor(frameC, HSVFrame, cv::COLOR_BGR2HSV);
+	//use two masks, one to detect for skin, one to detect for valid skin values
+	Scalar HSVUpper, HSVLower;
+	HSVLower = Scalar(0, 58, 70);
+	HSVUpper = Scalar(17, 170, 255);
+
+	cv::Mat skinMask;
+	cv::Mat skinMask2;
+	cv::Mat skin;
+	Mat trialMask;
+	//medianBlur(YCrCbFrame, YCrCbFrame, 5);
+	//medianBlur(HSVFrame, HSVFrame, 5);
+	//zone out faceRegion
+	faceRegion = YCrCbFrame(originalFaceRect).clone();
+	cv::inRange(faceRegion, lBound, uBound, skinMask);
+	faceRegion2 = HSVFrame(originalFaceRect).clone();
+	cv::inRange(faceRegion2, HSVLower, HSVUpper, skinMask2);
+
+	Mat kernel = Mat::ones(Size(10, 10), CV_8U);
+
+	bitwise_and(skinMask, skinMask2, trialMask, noArray());
+
+	//apply morphology to image to remove noise and ensure cleaner frame
+	cv::morphologyEx(trialMask, trialMask, MORPH_OPEN, kernel);
+
+	medianBlur(trialMask, trialMask, 5);
+
+	//for the real frame output we use the camera feed
+	normalFace = frameC(originalFaceRect).clone();
+
+	//bitwise and to get the actual skin color back;
+	cv::bitwise_and(normalFace, normalFace, skin, trialMask);
+
+	//imshow("skinMask1", skinMask);
+	//imshow("SkinMask2", skinMask2);
+	imshow("trialMask", trialMask);
+
+	return skin;
 }
