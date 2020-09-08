@@ -39,8 +39,6 @@ int main(int argc, const char** argv)
 	};
 	int camera_device = parser.get<int>("camera");
 	VideoCapture capture;
-	capture.set(CAP_PROP_FRAME_WIDTH, 1280);
-	capture.set(CAP_PROP_FRAME_HEIGHT, 720);
 	//-- 2. Read the video stream
 	capture.open(camera_device);
 	if (!capture.isOpened())
@@ -71,9 +69,6 @@ void detectAndDisplay(Mat frame)
 	Mat frame_gray;
 	cvtColor(frame, frame_gray, COLOR_RGB2GRAY);
 	equalizeHist(frame_gray, frame_gray);
-	/*double scaleFactor = 1.0 / 7.0;
-	resize(frame_gray, frame_gray, Size(), scaleFactor, scaleFactor);*/
-
 	//-- Detect faces
 	std::vector<Rect> faces;
 	face_cascade.detectMultiScale(frame_gray, faces);
