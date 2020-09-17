@@ -23,7 +23,7 @@ deque<float> timeVector;
 vector<float> pointsX;
 vector<float> pointsY;
 
-VideoCapture capture("IMG_1032.MOV");
+VideoCapture capture("./testing_videos/default1.mp4");
 
 int main(int argc, const char** argv) {
 
@@ -60,7 +60,7 @@ int main(int argc, const char** argv) {
 	for (int j = 0; j < nFrames; j++) {
 		if (capture.read(frame)) {
 			if (!frame.empty()) {
-				cv::flip(frame, frame, 0);
+				//cv::flip(frame, frame, 0);
 				frameQ.push_back(frame.clone());
 				imshow("frame", frame);
 			}

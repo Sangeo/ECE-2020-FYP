@@ -342,3 +342,6 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+face_recognition/face_recognition.vcxproj
+face_recognition/face_recognition.vcxproj.filters
+*.mp4
