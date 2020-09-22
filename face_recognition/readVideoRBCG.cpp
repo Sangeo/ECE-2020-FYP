@@ -23,7 +23,7 @@ deque<float> timeVector;
 vector<float> pointsX;
 vector<float> pointsY;
 
-VideoCapture capture("./testing_videos/default1.mp4");
+VideoCapture capture("./testing_videos/Vert50cmTest_M79bpm.mp4");
 
 int main(int argc, const char** argv) {
 
@@ -37,10 +37,9 @@ int main(int argc, const char** argv) {
 	//-- 1. Load the cascades
 	String face_cascade_name = samples::findFile(parser.get<String>("face_cascade"));
 	if (!face_cascade.load(face_cascade_name)) {
-		cout << "--(!)Error loading face cascade\n";
+		std::cout << "--(!)Error loading face cascade\n";
 		return -1;
 	};
-
 	Mat frame;
 	deque<Mat> frameQ;
 	int fs = capture.get(CAP_PROP_FPS);
@@ -48,7 +47,7 @@ int main(int argc, const char** argv) {
 	int height = capture.get(CAP_PROP_FRAME_HEIGHT);
 	int nFrames = capture.get(CAP_PROP_FRAME_COUNT);
 
-	cout << "Sampling rate: " << fs << endl
+	std::cout << "Sampling rate: " << fs << endl
 		<< "width: " << width << endl
 		<< "height :" << height << endl
 		<< "number of frames: " << nFrames << endl;
@@ -62,20 +61,21 @@ int main(int argc, const char** argv) {
 			if (!frame.empty()) {
 				//cv::flip(frame, frame, 0);
 				frameQ.push_back(frame.clone());
-				imshow("frame", frame);
+				//imshow("frame", frame);
 			}
 			else {
-				cout << "video has finished" << endl;
+				std::cout << "video has finished" << endl;
 				break;
 			}
 		}
 		if (waitKey(1) > 0) break;
 	}
 	capture.release();
-	cv::destroyAllWindows();
+	//cv::destroyAllWindows();
+	std::cout << "Finished reading entire video file" << endl;
 
 	//Define a criteria for opticalFlow
-	TermCriteria termCrit(TermCriteria::COUNT | TermCriteria::EPS, 20, 0.03);
+	TermCriteria termCrit(TermCriteria::COUNT + TermCriteria::EPS, 20, 0.03);
 	Size subPixWinSize(10, 10), winSize(31, 31);
 	int MAX_COUNT = 1000;
 	vector<Point2f> points[2];
@@ -85,6 +85,7 @@ int main(int argc, const char** argv) {
 	myFile.open("rBCG_trials.csv");
 	Rect ROI;
 	Mat greyFrame, prevGrey, goldFrame;
+	bool reinit = false;
 
 	//run after the frame has finished capturing
 	for (size_t i = 0; i < frameQ.size(); i++) {
@@ -96,13 +97,15 @@ int main(int argc, const char** argv) {
 			//convert to greyscale
 			cv::cvtColor(goldFrame, greyFrame, COLOR_BGR2GRAY);
 
-			if (initialising) {
+			if (initialising || reinit) {
 				goodFeaturesToTrack(greyFrame, points[1], MAX_COUNT, 0.01, 10, Mat(), 3, 3, 0, 0.04);
 				cornerSubPix(greyFrame, points[1], subPixWinSize, Size(-1, -1), termCrit);
+				
 			}
 			else if (!points[0].empty()) {
 				vector<uchar> status;
 				vector<float> err;
+
 				if (prevGrey.empty())
 					greyFrame.copyTo(prevGrey);
 
@@ -126,7 +129,7 @@ int main(int argc, const char** argv) {
 					points[1].pop_back();
 				}
 				else if (points[1].size() == 0) {
-					initialising = true;
+					reinit = true;
 				}
 				else {
 					for (size_t i = 0; i < points[1].size(); i++) {
@@ -144,7 +147,7 @@ int main(int argc, const char** argv) {
 			cv::swap(prevGrey, greyFrame);
 			if (cv::waitKey(1) > 0) break;
 
-			char c = (char)waitKey(5);
+			char c = (char)waitKey(10);
 			if (c == ' ') break;
 			switch (c) {
 			case 'r': // re-initialise all points.
@@ -161,7 +164,7 @@ int main(int argc, const char** argv) {
 	}
 	myFile << endl;
 
-	cout << "function successfully terminated" << endl;
+	std::cout << "function successfully terminated" << endl;
 }
 
 
@@ -181,7 +184,7 @@ Rect detectAndDisplay(Mat frame) {
 	std::vector<int> numDetections;
 
 	//downsizing image before processing
-	const double scaleFactor = 1.0 / 7.0;
+	const double scaleFactor = 1.0 / 8.0;
 	resize(frameClone, procFrame, cv::Size(), scaleFactor, scaleFactor);
 	//convert the image into a grayscale image which will be equalised for face detection
 	cvtColor(procFrame, frameGray, COLOR_BGR2GRAY); // convert the current frame into grayscale
@@ -213,20 +216,20 @@ Rect detectAndDisplay(Mat frame) {
 			brY = faceROI.br().y;
 
 
-			tempTL.x = tlX + (brX - tlX) * 0.2;
+			tempTL.x = tlX + (brX - tlX) * 0.1;
 			if (tempTL.x <= 0) {
 				tempTL.x = faceROI.tl().x;
 			}
-			tempTL.y = tlY + (brY - tlY) * 0.5;
+			tempTL.y = tlY + (brY - tlY) * 0.55;
 			if (tempTL.y <= 0) {
 				tempTL.y = faceROI.tl().y;
 			}
-			tempBR.x = brX - (brX - tlX) * 0.2;
+			tempBR.x = brX - (brX - tlX) * 0.1;
 			if (tempBR.x >= frameClone.cols) {
 				tempBR.x = faceROI.br().x;
 				std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
 			}
-			tempBR.y = brY - (brY - tlY) * 0.1;
+			tempBR.y = brY - (brY - tlY) * 0.05;
 			if (tempBR.y >= frameClone.rows) {
 				tempBR.y = faceROI.br().y;
 				std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;

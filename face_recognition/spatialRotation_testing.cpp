@@ -95,12 +95,12 @@ int main(int argc, const char** argv) {
 	cout << "CAPTURE FOMRAT IS: " << capture.get(CAP_PROP_FORMAT) << endl;
 
 	int capLength = capture.get(CAP_PROP_FPS) * 10; //get 8 seconds worth of information
-	
+
 	Mat newFrame;
 	Mat skinFrame;
 	deque<Mat> skinFrameQ;
 	Mat longTermPulseVector;
-	
+
 	while (true) {
 
 		Clock::time_point start = Clock::now();
@@ -113,7 +113,7 @@ int main(int argc, const char** argv) {
 
 				//queue if the skinFrame is ready to be pushed into the queue
 				if (!skinFrame.empty()) skinFrameQ.push_back(skinFrame);
-				
+
 			}
 		}
 		Clock::time_point end = Clock::now();
@@ -137,21 +137,21 @@ int main(int argc, const char** argv) {
 			longTermPulseVector = spatialRotation(skinFrameQ, longTermPulseVector, capLength);
 
 		}
-		
+
 		if (!longTermPulseVector.empty()) {
 			for (int i = 0; i < longTermPulseVector.rows; i++) {
 				OUTPUT_CSV_VAR.push_back(longTermPulseVector.at<float>(i));
 			}
 
-			write_CSV("output_file3.csv", OUTPUT_CSV_VAR,timeVector);
+			write_CSV("output_file3.csv", OUTPUT_CSV_VAR, timeVector);
 			cout << "the program has finished running for the capture of one stroll of frames" << endl;
-			
+
 			medianBlur(OUTPUT_CSV_VAR, OUTPUT_CSV_VAR, 5);
-			
+
 			plt::figure(0);
-			plt::plot(timeVector,OUTPUT_CSV_VAR);
+			plt::plot(timeVector, OUTPUT_CSV_VAR);
 			plt::show();
-			
+
 			break;
 		}
 		//return the pulse 
@@ -350,9 +350,9 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	max_cr = 173;
 	min_cb = 77;
 	max_cb = 127;
-	
+
 	//low-pass spatial filtering to remove high frequency content
-	blur(yccFace, yccFace, Size(5,5));
+	blur(yccFace, yccFace, Size(5, 5));
 
 	//colour segmentation
 	cv::inRange(yccFace, Scalar(0, min_cr, min_cb), Scalar(255, max_cr, max_cb), imgFilter);

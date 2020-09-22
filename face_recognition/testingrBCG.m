@@ -36,32 +36,43 @@ end
 
 xlabel('time (s)');
 ylabel('y displacement');
+title('signals obtained from video file');
 figure(2)
 hold on;
 
 avgSig = sumSig(:,end)./(cols-2);
-time = time(300:end-100);
-avgSig = avgSig(300:end-100);
-plot(time,avgSig);
 
+getRidOfStart = 1;
+%Discard the starting 10 seconds of the video data
+if (getRidOfStart == 1 )
+    delay = 29*17;
+    time = time(delay:end-29*20);
+    avgSig = avgSig(delay:end-29*20);
+else
+    time = time(1:end-29*41);
+    avgSig = avgSig(1:end-29*41);
+end
+
+plot(time,avgSig);
 xlabel('time (s)');
 ylabel('y displacement');
+title('average of signals obtained from video file');
 
 x = avgSig;
 figure(3);
-L=length(x);        
-NFFT=1024;       
-X=fft(x,NFFT);       
-Px=X.*conj(X)/(NFFT*L); %Power of each freq components     
+L=length(x);
+NFFT=1024;
+X=fft(x,NFFT);
+Px=X.*conj(X)/(NFFT*L); %Power of each freq components
 Px=Px(1:NFFT/2);
-fVals=fs*(0:NFFT/2-1)/NFFT;      
-plot(fVals,Px,'b','LineSmoothing','on','LineWidth',1);         
-title('One Sided Power Spectral Density');       
-xlabel('Frequency (Hz)')         
+fVals=fs*(0:NFFT/2-1)/NFFT;
+plot(fVals,Px,'b','LineSmoothing','on','LineWidth',1);
+title('One Sided Power Spectral Density');
+xlabel('Frequency (Hz)')
 ylabel('PSD');
 
 [val, loc] = max(Px);
 
 fprintf('the average heart rate measured was: %.2f \n',(60*fVals(loc)))
 
- bandpass(x,[0.8,2.5],fs)
+bandpass(x,[0.8,2.5],fs)
