@@ -345,3 +345,7 @@ healthchecksdb
 face_recognition/face_recognition.vcxproj
 face_recognition/face_recognition.vcxproj.filters
 *.mp4
+*.csv
+*.xlsx
+*.xlsx
+*.xlsx

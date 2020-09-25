@@ -84,6 +84,15 @@
     <ClCompile Include="readVideoRBCG.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="compute_fft.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="spatialRotation_FFT.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="frame_rate_stab.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="Diphylleia Grayi.jpg">

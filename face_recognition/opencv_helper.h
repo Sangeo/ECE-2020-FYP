@@ -11,3 +11,8 @@
 #include <future>
 #include <deque>
 #include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include "fftw3.h"
+#include "Python.h"
+#include "matplotlibcpp.h"

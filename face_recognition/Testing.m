@@ -2,10 +2,10 @@
 %this file wll plot two plots, one of the x raw values against each frame
 %number, and then the next is the one sided power spectral density function
 clear all;
-fileToRead = 'output_file3.csv';
+fileToRead = 'rPPG_FFT.csv';
 M = readmatrix(fileToRead);
 x = M(:,2);
-t = M(:,3);
+t = M(:,1);
 t1 = t;
 for i = 1:length(t)-1
     t1(i+1) = t1(i) + t(i+1);

@@ -9,11 +9,9 @@
 */
 
 #include "opencv_helper.h"
-#include "Python.h"
-#include "matplotlibcpp.h"
 
 namespace plt = matplotlibcpp;
-
+constexpr auto M_PI = 3.141592653589793;
 
 using namespace cv;
 using namespace std;
@@ -23,11 +21,6 @@ deque<double> getColorValues(
 
 Mat detectAndDisplay(
 	Mat frame);
-
-void write_CSV(
-	string filename,
-	deque<double> arr,
-	double fps);
 
 Rect findPoints(
 	vector<Rect> faces,
@@ -52,8 +45,8 @@ deque<double> topLeftX;
 deque<double> topLeftY;
 deque<double> botRightX;
 deque<double> botRightY;
-vector<float> timeVector;
-vector<float> OUTPUT_CSV_VAR;
+vector<double> timeVector;
+
 
 
 constexpr int maxColors = 3; //B,G,R
@@ -94,9 +87,9 @@ int main(int argc, const char** argv) {
 
 	cout << "CAPTURE FOMRAT IS: " << capture.get(CAP_PROP_FORMAT) << endl;
 
-	int capLength = capture.get(CAP_PROP_FPS) * 10; //get 8 seconds worth of information
+	const int capLength = 400; //get 8 seconds worth of information
 
-	Mat newFrame;
+	Mat newFrame; 
 	Mat skinFrame;
 	deque<Mat> skinFrameQ;
 	Mat longTermPulseVector;
@@ -118,8 +111,13 @@ int main(int argc, const char** argv) {
 		}
 		Clock::time_point end = Clock::now();
 		auto ms = chrono::duration_cast<milliseconds>(end - start);
-		timeVector.push_back(ms.count());
-
+		if (!timeVector.empty()) {
+			auto cTime = timeVector.back() + ms.count();
+			timeVector.push_back(cTime);
+		}
+		else {
+			timeVector.push_back(ms.count());
+		}
 		//-----Do the processing required on the skin pixels using spatial subspace rotation (2SR) algorithm 
 		//	dump the initial frames as they are usually not stable
 		if ((skinFrameQ.size() >= capLength) && firstTime) {
@@ -129,32 +127,81 @@ int main(int argc, const char** argv) {
 			timeVector.clear();
 		}
 		//grab skin pixel information from the queue and process the data
-		else if (skinFrameQ.size() > capLength) {
-			if (DEBUGGING_MODE) {
-				cout << "There are: " << skinFrameQ.size() << " frames stored in the queue." << endl;
-				cout << ".................................." << endl;
-			}
+		else if (skinFrameQ.size() >= capLength) {
+
+			//cout << "There are: " << skinFrameQ.size() << " frames stored in the queue." << endl;
+			//cout << ".................................." << endl;
+
 			longTermPulseVector = spatialRotation(skinFrameQ, longTermPulseVector, capLength);
 
 		}
 
 		if (!longTermPulseVector.empty()) {
-			for (int i = 0; i < longTermPulseVector.rows; i++) {
-				OUTPUT_CSV_VAR.push_back(longTermPulseVector.at<float>(i));
+			
+			//preallocate memory
+			double* in = (double*)fftw_malloc(sizeof(double) * capLength);
+			fftw_complex* out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * capLength);
+			vector <double> x, y;
+			for (int i = 0; i < (capLength - 1); i++) {
+				double t = timeVector.at(i) / 1000;
+				double sig = (double)longTermPulseVector.at<float>(i);
+
+				cout << "Time is: " << t
+					<< "heart rate is: " << sig << endl;
+
+				x.push_back(t);
+				y.push_back(sig);
+				in[i] = sig;
+
 			}
+			
+			fftw_plan fftPlan = fftw_plan_dft_r2c_1d(capLength, in, out, FFTW_ESTIMATE);
+			fftw_execute(fftPlan);
 
-			write_CSV("output_file3.csv", OUTPUT_CSV_VAR, timeVector);
-			cout << "the program has finished running for the capture of one stroll of frames" << endl;
+			vector<double> v;
+			vector<double> ff;
+			double sampRate = 29;
+			for (int i = 0; i <= ((capLength / 2) - 1); i++) {
+				double a, b;
+				a = sampRate * i / capLength;
+				//Here I have calculated the y axis of the spectrum in dB
+				b = (20 * log(sqrt(out[i][0] * out[i][0] + out[i][1] * out[i][1]))) / capLength;
+				if (i == 0) {
+					b = b * -1;
+				}
+				cout << "Frequency is: " << a
+					<< "Power Spectrum is: " << b << endl ;
+				v.push_back((double)b);
+				ff.push_back((double)a);
 
-			medianBlur(OUTPUT_CSV_VAR, OUTPUT_CSV_VAR, 5);
+			}
+			ofstream myfile;
+			myfile.open("rPPG_FFT.csv");
+			for (int i = 0; i < (capLength - 1); i++) {
+				myfile << x[i] << ";" << y[i] << endl;	
+			}	
+			myfile.close();
 
 			plt::figure(0);
-			plt::plot(timeVector, OUTPUT_CSV_VAR);
+			plt::plot(x, y);
+			plt::title("Estimated heart rate signal (time-domain)");
+			plt::xlabel("Time (s)");
+			plt::ylabel("Measured Rotation");
+			cout << endl;
+			plt::figure(1);
+			plt::plot(ff, v);
+			plt::title("Estimated heart rate signal (frequency-domain)");
+			plt::xlabel("Frequency (Hz)");
+			plt::ylabel("Power");
 			plt::show();
 
+			fftw_destroy_plan(fftPlan);
+			fftw_free(in);
+			fftw_free(out);
 			break;
 		}
 		//return the pulse 
+
 
 		//exit condition is when the keyboard is pressed anywhere.
 		if (waitKey(1) > 0) break;
@@ -360,7 +407,7 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	//Morphology on the imgFilter to remove noise introduced by colour segmentation
 	Mat kernel = Mat::ones(Size(7, 7), CV_8U);
 	cv::morphologyEx(imgFilter, imgFilter, MORPH_OPEN, kernel, Point(-1, -1), 2);
-
+	cv::morphologyEx(imgFilter, imgFilter, MORPH_CLOSE, kernel, Point(-1, -1), 2);
 	Mat skin;
 
 	//return our detected skin values
@@ -370,18 +417,6 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	return skin;
 }
 
-/** Function: write_CSV
-	Input: filename, vector<double> of numbers
-	Output: prints to csv file the results
-*/
-void write_CSV(string filename, vector<float> arr, vector<float> time) {
-	ofstream myfile;
-	myfile.open(filename.c_str());
-	int vsize = arr.size();
-	for (int n = 0; n < vsize; n++) {
-		myfile << n << ";" << arr[n] << ";" << time[n] << endl;
-	}
-}
 
 
 
@@ -569,17 +604,16 @@ Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLengt
 				cout << "Temp: " << endl << tempPulse << endl;
 			}
 			SRDash.clear();
+			
+			
 
-			if (DEBUGGING_MODE) {
-				cout << "Current Long-term Pulse Vector :" << endl << longTermPulseVector << endl;
-
-			}
 		}
 	}
 	//clean memory registers
 	eigVecArray.clear();
 	eigValArray.clear();
 	SRDash.clear();
-
+	
+	cout << "Current Length of Long-term Pulse Vector :" << longTermPulseVector.rows << endl;
 	return longTermPulseVector;
 }
