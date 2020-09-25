@@ -48,22 +48,10 @@
     <ClCompile Include="rBCG_pointForm.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="smoothROI.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="manualFaceROI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="skinROI_DNU.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="queueFrames.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="refineFaceRecog.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="skinDetectorv2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="spatialRotation.cpp">
@@ -73,9 +61,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="manualROI_2SR.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="spatialRotation_v1.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="preRecordingBCG.cpp">
