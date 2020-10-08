@@ -69,6 +69,9 @@
     <ClCompile Include="liveRecording_livePlotting.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="skinDetectionv2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Documents\OpenCV\sources\modules\objdetect\include\opencv2\objdetect.hpp">
