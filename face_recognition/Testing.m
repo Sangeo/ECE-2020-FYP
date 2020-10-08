@@ -2,7 +2,7 @@
 %this file wll plot two plots, one of the x raw values against each frame
 %number, and then the next is the one sided power spectral density function
 clear all;
-fileToRead = 'rPPG_FFT.csv';
+fileToRead = 'output_file3.csv';
 M = readmatrix(fileToRead);
 x = M(:,2);
 t = M(:,1);

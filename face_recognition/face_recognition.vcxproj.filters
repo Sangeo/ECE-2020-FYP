@@ -75,7 +75,19 @@
     <ClCompile Include="spatialRotation_FFT.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="frame_rate_stab.cpp">
+    <ClCompile Include="filtering_in_c.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="live_rPPG.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="llive_rBCG.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="fixedCoeff_Filter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="liveRecording_livePlotting.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -1,23 +1,78 @@
 #include "opencv_helper.h"
-#include <Windows.h>
 
-using namespace std;
 using namespace cv;
 namespace plt = matplotlibcpp;
 
 constexpr auto M_PI = 3.141592653589793;
 
+const int FILTER_SECTIONS = 12; //12 or 30 
+
+//the following filter uses ellip method on matlab with following parameters:
+/*    'IIR Digital Filter (real)                            '
+    '-------------------------                              '
+    'Number of Sections  : 8                                '
+    'Stable              : Yes                              '
+    'Linear Phase        : No                               '
+    '                                                       '
+    'Design Method Information                              '
+    'Design Algorithm : Elliptic                            '
+    '                                                       '
+    'Design Options                                         '
+    'Match Exactly : both                                   '
+    '                                                       '
+    'Design Specifications                                  '
+    'Sample Rate            : 29 Hz                         '
+    'Response               : Bandpass                      '
+    'Specification          : Fst1,Fp1,Fp2,Fst2,Ast1,Ap,Ast2'
+    'First Passband Edge    : 800 mHz                       '
+    'Passband Ripple        : 0.1 dB                        '
+    'First Stopband Edge    : 674.4 mHz                     '
+    'Second Passband Edge   : 3 Hz                          '
+    'First Stopband Atten.  : 60 dB                         '
+    'Second Stopband Edge   : 4.8055 Hz                     '
+    'Second Stopband Atten. : 60 dB                         '
+*/
+//const double sos_matrix[8][6] = {
+//{0.846583835490752, -1.224969664472022,0.846583835490752  , 1.000000000000000, -1.551158799690900 ,  0.922224343368803},
+//{0.846583835490752, -1.675176562428522,0.846583835490752  , 1.000000000000000, -1.944496042611625 ,  0.975944709993054},
+//{0.734003083653774, -0.885546326998994,0.734003083653774  , 1.000000000000000, -1.552880987857034 ,  0.836787167254052},
+//{0.734003083653774, -1.457874526038079,0.734003083653774  , 1.000000000000000, -1.896307683246195 ,  0.935513714779243},
+//{0.606165111061455, 0.187739765780086, 0.606165111061455  , 1.000000000000000, -1.782733795902366 ,  0.850034082022973},
+//{0.606165111061455, -1.210810568893677,0.606165111061455  , 1.000000000000000, -1.621016248628841 ,  0.778259654629173},
+//{0.114420517529712, -0.172197699790054,0.114420517529712  , 1.000000000000000, -1.567442213995240 ,  0.978530816113899},
+//{0.114420517529712, -0.226080841017689,0.114420517529712  , 1.000000000000000, -1.964685431918863 ,  0.993947873198382}
+//};
+
+
+//the following filter uses butterworth bandpass
+const double sos_matrix[12][6] = {
+	{0.821904631289823, -1.62696489036367, 0.821904631289823, 1, -1.65115775247009, 0.956239445176575},
+	{ 0.821904631289823, -1.32674174567684, 0.821904631289823, 1, -1.96106396889903, 0.986723611465211 },
+	{ 0.780764081275640, -1.54692952632525, 0.780764081275640, 1, -1.56427767500315, 0.864961197373822 },
+	{ 0.780764081275640, -1.23429225313410, 0.780764081275640, 1, -1.93459287711451, 0.959002322765484 },
+	{ 0.714686410007531, -1.41854618499363, 0.714686410007531, 1, -1.45294320387794, 0.754222796360954 },
+	{ 0.714686410007531, -1.06823178848402, 0.714686410007531, 1, -1.90430891262403, 0.926726397665631 },
+	{ 0.611402310616563, -1.21661813952701, 0.611402310616563, 1, -1.86538074368294, 0.885520925318713 },
+	{ 0.611402310616563, -0.787144826085887, 0.611402310616563, 1, -1.31144754653070, 0.610589268539194 },
+	{ 0.461489552066884, -0.920876339017339, 0.461489552066884, 1, -1.81057593401990, 0.829235052618707 },
+	{ 0.461489552066884, -0.322599196669853, 0.461489552066884, 1, -1.16218727318019, 0.441359420631550 },
+	{ 0.299969123764612, -0.599764553627771, 0.299969123764612, 1, -1.73181537720060, 0.752138831145407 },
+	{ 0.299969123764612, 0.349792836547195, 0.299969123764612, 1, -1.08728905725033, 0.313519738807378 } };
+
+
+
+
 CascadeClassifier face_cascade;
-typedef chrono::high_resolution_clock Clock;
-typedef chrono::milliseconds milliseconds;
-const bool DEBUG_MODE = true;
+typedef std::chrono::high_resolution_clock Clock;
+typedef std::chrono::milliseconds milliseconds;
+const bool DEBUG_MODE = false;
 const bool DEBUG_MODE2 = false;
 
-deque<double> topLeftX;
-deque<double> topLeftY;
-deque<double> botRightX;
-deque<double> botRightY;
-vector<double> timeVec;
+std::deque<double> topLeftX;
+std::deque<double> topLeftY;
+std::deque<double> botRightX;
+std::deque<double> botRightY;
+std::vector<double> timeVec;
 
 
 int strideLength = 45; // size of the temporal stride 
@@ -28,7 +83,7 @@ Mat detectAndDisplay(
 	Mat frame);
 
 Rect findPoints(
-	vector<Rect> faces,
+	std::vector<Rect> faces,
 	int bestIndex,
 	double scaleFactor);
 
@@ -38,9 +93,24 @@ Mat skinDetection(
 
 
 Mat spatialRotation(
-	deque<Mat> skinFrameQ,
+	std::deque<Mat> skinFrameQ,
 	Mat longTermPulseVector,
 	int capLength);
+
+std::deque<double> filterDesign(
+	double f1,
+	double f2,
+	double fs,
+	double N);
+
+std::deque<double> convFunc(
+	std::deque<double> a,
+	std::deque<double> b,
+	int aLen,
+	int bLen);
+
+std::vector<double> sosFilter(
+	std::vector<double> signal);
 
 int main(int argc, const char** argv) {
 
@@ -55,9 +125,10 @@ int main(int argc, const char** argv) {
 	//-- 1. Load the cascades
 	String face_cascade_name = samples::findFile(parser.get<String>("face_cascade"));
 	if (!face_cascade.load(face_cascade_name)) {
-		cout << "--(!)Error loading face cascade\n";
+		std::cout << "--(!)Error loading face cascade\n";
 		return -1;
 	};
+
 	//Get video input/output setup
 	cv::VideoCapture capture(1); // 1 for front facing webcam
 	capture.set(CAP_PROP_FPS, 30);
@@ -67,21 +138,21 @@ int main(int argc, const char** argv) {
 	capture.set(CAP_PROP_AUTOFOCUS, 1);
 	capture.set(CAP_PROP_AUTO_WB, 0);
 
-	cout << "CAPTURE FOMRAT IS: " << capture.get(CAP_PROP_FORMAT) << endl;
+	std::cout << "CAPTURE FOMRAT IS: " << capture.get(CAP_PROP_FORMAT) << std::endl;
 	if (!capture.isOpened()) {
 		return -1;
 	}
 	//capture.set(CAP_PROP_FOURCC, ('D', 'I', 'V', 'X'));
 
 	Mat frame;
-	deque<Mat> frameQ;
-	
+	std::deque<Mat> frameQ;
+
 
 	int numFrames; //15 seconds worth of frames
 	const int FPS = capture.get(CAP_PROP_FPS);
 	const int msPerFrame = 33;
 
-	cout << "Frames per second according to capture.get(): " << FPS << endl;
+	std::cout << "Frames per second according to capture.get(): " << FPS << std::endl;
 	bool recording = true;
 	bool processing = false;
 	bool firstTime = true;
@@ -110,7 +181,7 @@ int main(int argc, const char** argv) {
 				}
 
 				Clock::time_point end = Clock::now();
-				auto ms = chrono::duration_cast<milliseconds>(end - start);
+				auto ms = std::chrono::duration_cast<milliseconds>(end - start);
 				double captureTime = ms.count() / 1000;
 
 				if (!frame.empty()) {
@@ -120,7 +191,7 @@ int main(int argc, const char** argv) {
 
 				if (DEBUG_MODE) {
 					std::cout << "time taken to record frame " << i << "is : "
-						<< captureTime << "ms " << endl;
+						<< captureTime << "ms " << std::endl;
 				}
 
 				if (!timeVec.empty()) {
@@ -147,7 +218,7 @@ int main(int argc, const char** argv) {
 			}
 			else {
 				Mat skinFrame;
-				deque<Mat> skinFrameQ;
+				std::deque<Mat> skinFrameQ;
 				for (size_t j = 0; j < numFrames; j++) {
 					skinFrame = detectAndDisplay(frameQ[j].clone());
 					skinFrameQ.push_back(skinFrame);
@@ -155,30 +226,36 @@ int main(int argc, const char** argv) {
 				SRResult = spatialRotation(skinFrameQ, SRResult, numFrames);
 
 				if (DEBUG_MODE) {
-					cout << "Analysis results:" << endl << SRResult << endl;
+					std::cout << "Analysis results:" << std::endl << SRResult << std::endl;
 				}
-				//FFT and PLOTTING ~~~~~~~~~~~~~~~~~~~~~
+							
+				std::cout << "number of frames according to the SRResult: " << SRResult.size() << std::endl;
+				
+				//Pre-filtering FFT and PLOTTING ~~~~~~~~~~~~~~~~~~~~~
 				//preallocate memory
 				double* in = (double*)fftw_malloc(sizeof(double) * numFrames);
 				fftw_complex* out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * numFrames);
-				vector <double> x, y;
+				std::vector <double> x, y;
+				std::deque<double> rPPGRawValues;
 				for (int i = 0; i < (numFrames - 1); i++) {
 					double t = timeVec.at(i) / 1000;
 					double sig = (double)SRResult.at<float>(i);
 
-					cout << "Time is: " << t
-						<< "heart rate is: " << sig << endl;
-
+					if (DEBUG_MODE) {
+						std::cout << "Time is: " << t
+							<< "heart rate is: " << sig << std::endl;
+					}
 					x.push_back(t);
 					y.push_back(sig);
+					rPPGRawValues.push_back(sig);
 					in[i] = sig;
-					
+
 				}
 
 				fftw_plan fftPlan = fftw_plan_dft_r2c_1d(numFrames, in, out, FFTW_ESTIMATE);
 				fftw_execute(fftPlan);
 
-				vector<double> v, ff;
+				std::vector<double> v, ff;
 				double sampRate = 29;
 				for (int i = 0; i <= ((numFrames / 2) - 1); i++) {
 					double a, b;
@@ -188,12 +265,15 @@ int main(int argc, const char** argv) {
 					if (i == 0) {
 						b = b * -1;
 					}
-					cout << "Frequency is: " << a
-						<< "Power Spectrum is: " << b << endl;
+					if (DEBUG_MODE) {
+						std::cout << "Frequency is: " << a
+							<< "Power Spectrum is: " << b << std::endl;
+					}
 					v.push_back((double)b);
 					ff.push_back((double)a);
 
 				}
+
 
 				plt::figure(0);
 				plt::subplot(2, 1, 1);
@@ -201,6 +281,13 @@ int main(int argc, const char** argv) {
 				plt::title("Estimated heart rate signal (time-domain)");
 				plt::xlabel("Time (s)");
 				plt::ylabel("Measured Rotation");
+
+				std::ofstream myfile;
+				myfile.open("rPPG_TestRes.csv");
+				for (int i = 0; i < (numFrames - 1); i++) {
+					myfile << x[i] << ";" << y[i] << std::endl;
+				}
+				myfile.close();
 
 				plt::subplot(2, 1, 2);
 				plt::plot(ff, v);
@@ -213,10 +300,72 @@ int main(int argc, const char** argv) {
 				fftw_destroy_plan(fftPlan);
 				fftw_free(in);
 				fftw_free(out);
-				
+
+				std::vector<double> fOut = sosFilter(y);
+
+				//preallocate memory
+				numFrames = fOut.size();
+				std::cout << "number of frames according to the filtered : "<< numFrames << std::endl;
+				double* filterIn = (double*)fftw_malloc(sizeof(double) * numFrames);
+				fftw_complex* filterOut = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * numFrames);
+				std::vector<double> x1, y1;
+				for (int i = 0; i < numFrames; i++) {
+					double sig = fOut[i];
+					y1.push_back(sig);
+					filterIn[i] = sig;
+
+					// psuedo timer for the sake of plotting 
+					double time = (double)(i * 34) / 1000;
+					if (DEBUG_MODE) {
+						std::cout << "Time filtered: " << time << std::endl;
+						std::cout << "Filtered Signal: " << sig << std::endl;
+					}
+					x1.push_back(time);
+				}
+
+				fftw_plan fftPlan2 = fftw_plan_dft_r2c_1d(numFrames, filterIn, filterOut, FFTW_ESTIMATE);
+				fftw_execute(fftPlan2);
+
+				std::vector<double> v1, ff1;
+
+				for (int i = 0; i <= ((numFrames / 2) - 1); i++) {
+					double a, b;
+					a = sampRate * i / numFrames;
+					//Here I have calculated the y axis of the spectrum in dB
+					b = (20 * log(sqrt(filterOut[i][0] * filterOut[i][0] + filterOut[i][1] * filterOut[i][1]))) / numFrames;
+					if (i == 0) {
+						b = b * -1;
+					}
+					if (DEBUG_MODE) {
+						std::cout << "Frequency is: " << a
+							<< "Power Spectrum is: " << b << std::endl;
+					}
+					v1.push_back((double)b);
+					ff1.push_back((double)a);
+
+				}
+
+				plt::figure(1);
+				plt::subplot(2, 1, 1);
+				plt::plot(x1, y1);
+				plt::title("Filtered heart rate signal (time-domain)");
+				plt::xlabel("Time (s)");
+				plt::ylabel("Measured Rotation");
+
+				plt::subplot(2, 1, 2);
+				plt::plot(ff1, v1);
+				plt::title("Filtered heart rate signal (frequency-domain)");
+				plt::xlabel("Frequency (Hz)");
+				plt::ylabel("Power");
+				plt::show();
+
+				fftw_destroy_plan(fftPlan2);
+				fftw_free(filterIn);
+				fftw_free(filterOut);
+
 				plt::close();
 				cv::destroyWindow("Detected Face");
-				
+
 				frameQ.clear();
 				timeVec.clear();
 				skinFrameQ.clear();
@@ -229,8 +378,10 @@ int main(int argc, const char** argv) {
 			processing = false;
 		}
 
-		std::cout << "finished recording and processing N frames" << endl;
-		std::cout << "going to repeat" << endl;
+		if (DEBUG_MODE) {
+			std::cout << "finished recording and processing N frames" << std::endl;
+			std::cout << "going to repeat" << std::endl;
+		}
 	}
 
 	frameQ.clear();
@@ -238,6 +389,82 @@ int main(int argc, const char** argv) {
 	return 0;
 }
 
+
+
+/* Algorithm for FIR bandpass filter
+Input:
+f1, the lowest frequency to be included, in Hz
+f2, the highest frequency to be included, in Hz
+f_samp, sampling frequency of the audio signal to be filtered, in Hz
+N, the order of the filter; assume N is odd
+Output:
+a bandpass FIR filter in the form of an N-element array
+*/
+std::deque<double> filterDesign(double f1, double f2, double fs, double N) {
+	std::deque<double> output(N);
+	std::cout << "entered filter design" << std::endl;
+	double f1_c, f2_c, w1_c, w2_c;
+	f1_c = f1 / fs;
+	f2_c = f2 / fs;
+	w1_c = 2 * M_PI * f1_c;
+	w2_c = 2 * M_PI * f2_c;
+	std::cout << "f1_c: " << f1_c << " "
+		<< "f2_c" << f2_c << std::endl
+		<< "w1_c" << w1_c << " "
+		<< "w2_c" << w2_c << std::endl;
+
+	int mid = N / 2; //integer division, drops the remainder.
+
+	for (int i = 0; i < N; i++) {
+		if (i == mid) {
+			output[i] = (double)2 * f2_c - 2 * f1_c;
+		}
+		else {
+			if (i < mid) {
+				int i_low = -N / 2 + i;
+				output[i] = (double)(std::sin(w2_c * i_low) / (M_PI * i_low))
+					- (std::sin(w1_c * i_low) / (M_PI * i_low));
+			}
+			else if (i > mid) {
+				int i_high = N / 2 + i;
+				output[i] = (double)(std::sin(w2_c * i_high) / (M_PI * i_high))
+					- (std::sin(w1_c * i_high) / (M_PI * i_high));
+			}
+
+		}
+	}
+
+
+	return output;
+}
+
+/* Convolution function
+* input:
+* vectors a and b
+* length of vectors a and b
+* output:
+* vector of convolution result
+*/
+std::deque<double> convFunc(std::deque<double> a, std::deque<double> b, int aLen, int bLen) {
+
+	std::cout << "entered convolution " << std::endl;
+	int abMax = std::max(aLen, bLen);
+	int convLen = aLen + bLen - 1;
+	std::deque<double> output(convLen);
+
+	for (int n = 0; n < convLen; n++) {
+		float prod = 0;
+		int kMax = std::min(abMax, n);
+		for (int k = 0; k <= kMax; k++) {
+			//make sure we're in bounds for both arrays
+			if (k < aLen && (n - k) < bLen) {
+				prod += a[k] * b[n - k];
+			}
+		}
+		output[n] = prod;
+	}
+	return output;
+}
 
 
 
@@ -324,7 +551,7 @@ Mat detectAndDisplay(Mat frame) {
 	Output:
 	- current face ROI coordinates, scaled to original image size
 */
-Rect findPoints(vector<Rect> faces, int bestIndex, double scaleFactor) {
+Rect findPoints(std::vector<Rect> faces, int bestIndex, double scaleFactor) {
 
 	double tlX = floor(faces[bestIndex].tl().x * (1 / scaleFactor));
 	double tlY = floor(faces[bestIndex].tl().y * (1 / scaleFactor));
@@ -457,10 +684,10 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 
 */
 
-Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLength) {
-	deque<Mat> eigValArray; // This will contain the eigenvalues
-	deque<Mat> eigVecArray; // This will contain the eigenvectors
-	vector<Mat> SRDash;
+Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLength) {
+	std::deque<Mat> eigValArray; // This will contain the eigenvalues
+	std::deque<Mat> eigVecArray; // This will contain the eigenvectors
+	std::vector<Mat> SRDash;
 	// for each frame in the queue 
 	for (size_t i = 1; i <= capLength; i++) {
 		//our skinFrames are queued in a deque, which can be accessed using a for loop
@@ -471,7 +698,7 @@ Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLengt
 			//cout << "The skinFrame is :" << endl << temp << endl;
 		}
 		//for each skinFrame, split the skin pixles into 3 channels, blue, green and red.
-		vector<Mat> colorVector;
+		std::vector<Mat> colorVector;
 		split(temp, colorVector);
 		// colorVector has size 3xN, 
 		// colorVector[0] contains all blue pixels
@@ -480,7 +707,7 @@ Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLengt
 
 		/**code used to get rid of the unnecessary zeros**/
 		// note: we only need to use one mask here since skin pixel values cannot be (0,0,0)
-		vector<Point> mask;
+		std::vector<Point> mask;
 		findNonZero(colorVector[0], mask);
 		Mat bVal, gVal, rVal;
 		for (Point p : mask) {
@@ -490,7 +717,7 @@ Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLengt
 		}
 
 		Mat colorValues; //colorValues is a Nx3 matrix
-		vector<Mat> matrices = { rVal, gVal, bVal };
+		std::vector<Mat> matrices = { rVal, gVal, bVal };
 		hconcat(matrices, colorValues);
 		if (DEBUG_MODE2) {
 			//cout << "The concatenanted skinFrame (ignoring zeros) is : " << endl << colorValues << endl;
@@ -512,7 +739,7 @@ Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLengt
 		cv::sort(eigVal, sortEigVal, cv::SortFlags::SORT_EVERY_COLUMN + cv::SortFlags::SORT_DESCENDING);
 
 		if (DEBUG_MODE2) {
-			cout << "C" << endl << C << endl;
+			std::cout << "C" << std::endl << C << std::endl;
 			/*cout << "eigVal" << endl << eigVal << endl;
 			cout << "sortEigVal" << endl << sortEigVal << endl;
 			cout << "eigVec" << endl << eigVec << endl;*/
@@ -538,10 +765,10 @@ Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLengt
 				lambdaTime = eigValArray[t - 1].clone();
 
 				if (DEBUG_MODE2) {
-					cout << "Current values for tau and time are -----------------------------------" << endl;
-					cout << "uTau and lambdaTau" << uTau << "," << endl << lambdaTau << "," << endl;
-					cout << "uTime and lambdaTime" << uTime << "," << endl << lambdaTime << "," << endl;
-					cout << endl;
+					std::cout << "Current values for tau and time are -----------------------------------" << std::endl;
+					std::cout << "uTau and lambdaTau" << uTau << "," << std::endl << lambdaTau << "," << std::endl;
+					std::cout << "uTime and lambdaTime" << uTime << "," << std::endl << lambdaTime << "," << std::endl;
+					std::cout << std::endl;
 				}
 
 				// calculation for R'
@@ -572,10 +799,10 @@ Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLengt
 				Mat SR = S.mul(RDash);; // Obtain SR matrix, and adjust with rotation vectors (step (10) of 2SR paper)
 
 				if (DEBUG_MODE2) {
-					cout << "result matrix S': " << endl << S << endl;
-					cout << "result matrix SR': " << endl << SR << endl;
-					cout << "Type of matrix SR': " << SR.type() << endl;
-					cout << "Rows and columns of SR' are: " << SR.rows << " and " << SR.cols << endl;
+					std::cout << "result matrix S': " << std::endl << S << std::endl;
+					std::cout << "result matrix SR': " << std::endl << SR << std::endl;
+					std::cout << "Type of matrix SR': " << SR.type() << std::endl;
+					std::cout << "Rows and columns of SR' are: " << SR.rows << " and " << SR.cols << std::endl;
 				}
 
 				SR.convertTo(SR, 5); // adjust to 32F rather than double --- needs fixing later
@@ -585,8 +812,8 @@ Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLengt
 				vconcat(t_2.t(), t_3.t(), backProjectTau);
 				Mat SRBackProjected = SR * backProjectTau;
 				if (DEBUG_MODE2) {
-					cout << "the back project vector used for multiplication is : " << endl << backProjectTau << endl;
-					cout << "Backprojected SR' is then equals: " << endl << SRBackProjected << endl;
+					std::cout << "the back project vector used for multiplication is : " << std::endl << backProjectTau << std::endl;
+					std::cout << "Backprojected SR' is then equals: " << std::endl << SRBackProjected << std::endl;
 				}
 				// Obtain the SR'
 				SRDash.push_back(SRBackProjected);
@@ -605,9 +832,9 @@ Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLengt
 			SR_2std = sum(SR_2Stdev)[0];
 
 			if (DEBUG_MODE2) {
-				cout << "Current value of t is: " << t << endl;
-				cout << "Current value of i is: " << i << endl;
-				cout << "therefore the current value of t - stridelength + 1 is : " << t - strideLength << endl << endl;
+				std::cout << "Current value of t is: " << t << std::endl;
+				std::cout << "Current value of i is: " << i << std::endl;
+				std::cout << "therefore the current value of t - stridelength + 1 is : " << t - strideLength << std::endl << std::endl;
 			}
 			//Calculate pulse vector 
 			Mat pulseVector;
@@ -631,8 +858,8 @@ Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLengt
 			}
 
 			if (DEBUG_MODE2) {
-				cout << "Current PulseVector before overlap-adding: " << endl << pulseVector << endl;
-				cout << "Temp: " << endl << tempPulse << endl;
+				std::cout << "Current PulseVector before overlap-adding: " << std::endl << pulseVector << std::endl;
+				std::cout << "Temp: " << std::endl << tempPulse << std::endl;
 			}
 			SRDash.clear();
 
@@ -645,6 +872,63 @@ Mat spatialRotation(deque<Mat> skinFrameQ, Mat longTermPulseVector, int capLengt
 	eigValArray.clear();
 	SRDash.clear();
 
-	cout << "Current Length of Long-term Pulse Vector :" << longTermPulseVector.rows << endl;
+	//std::cout << "Current Length of Long-term Pulse Vector :" << longTermPulseVector.rows << std::endl;
 	return longTermPulseVector;
+}
+
+
+
+std::vector<double> sosFilter(std::vector<double> signal) {
+
+	std::vector<double> output;
+	output.resize(signal.size());
+
+	double** tempOutput = new double* [FILTER_SECTIONS];
+	for (int i = 0; i < FILTER_SECTIONS; i++)
+		tempOutput[i] = new double[signal.size()];
+	for (int i = 0; i < FILTER_SECTIONS; i++) {
+		for (int j = 0; j < signal.size(); j++) {
+			tempOutput[i][j] = 0;
+		}
+	}
+
+	for (int i = 0; i < signal.size(); i++) {
+
+		if (i - 2 < 0) {
+			std::cout << "skipping some stuff" << std::endl;
+			continue;
+		}
+
+		double b0, b1, b2, a1, a2;
+		double result;
+		//for each section
+		for (int j = 0; j < FILTER_SECTIONS; j++) {
+
+			b0 = sos_matrix[j][0];
+			b1 = sos_matrix[j][1];
+			b2 = sos_matrix[j][2];
+			a1 = sos_matrix[j][4];
+			a2 = sos_matrix[j][5];
+
+			if (j == 0) {
+				result = b0 * signal[i] + b1 * signal[i - 1] + b2 * signal[i - 2]
+					- a1 * tempOutput[j][i - 1] - a2 * tempOutput[j][i - 2];
+				tempOutput[j][i] = result;
+			}
+			else {
+				result = b0 * tempOutput[j - 1][i] + b1 * tempOutput[j - 1][i - 1] + b2 * tempOutput[j - 1][i - 2]
+					- a1 * tempOutput[j][i - 1] - a2 * tempOutput[j][i - 2];
+				tempOutput[j][i] = result;
+			}
+
+		}
+
+
+	}
+	for (int x = 0; x < signal.size(); x++) {
+		output[x] = tempOutput[FILTER_SECTIONS - 1][x];
+		std::cout << "output: " << output[x] << std::endl;
+	}
+
+	return output;
 }
