@@ -15,22 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="face_recog_example.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="face_recog_trial.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="frame_rate.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="multi_processing.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="skinDetector.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="faceTracking.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="rBCG_trial.cpp">
@@ -48,9 +33,6 @@
     <ClCompile Include="rBCG_pointForm.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="manualFaceROI.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="queueFrames.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -58,9 +40,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="spatialRotation_fixing.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="manualROI_2SR.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="preRecordingBCG.cpp">
@@ -90,11 +69,6 @@
     <ClCompile Include="liveRecording_livePlotting.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="Diphylleia Grayi.jpg">
-      <Filter>Source Files</Filter>
-    </Image>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Documents\OpenCV\sources\modules\objdetect\include\opencv2\objdetect.hpp">

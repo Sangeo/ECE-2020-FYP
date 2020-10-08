@@ -83,6 +83,8 @@ int main(int argc, const char** argv) {
 	bool initialising = true;
 	bool processing = false;
 	bool recording = true;
+	plt::figure(0);
+	plt::show(false);
 
 	while (true) {
 		//loop until user presses any key to exit
@@ -159,6 +161,7 @@ int main(int argc, const char** argv) {
 					}
 				}
 				SRResult = spatialRotation(skinFrameQ, SRResult, numFrames);
+				
 				std::vector <double> x, y;
 				for (int i = 0; i < (numFrames - 1); i++) {
 					double t = timeVec.at(i) / 1000;
@@ -171,17 +174,21 @@ int main(int argc, const char** argv) {
 						assert(!rPPGSignal.empty());
 						rPPGSignal.erase(rPPGSignal.begin());
 					}
+					
 				}
-
-				plt::figure(0);
-				plt::plot(timeVec, rPPGSignal);
+				
+				plt::subplot(2, 1, 1);
+				plt::plot(x, y);
 				plt::title("Estimated heart rate signal (time-domain)");
 				plt::xlabel("Time (s)");
 				plt::ylabel("Measured Rotation");
-				plt::pause(0.05);
+				plt::draw();
+				plt::pause(0.001);
 
+				frameQ.clear();
+				skinFrameQ.clear();
+				firstStride = true;
 			}
-			plt::show();
 			recording = true;
 			processing = false;
 		}
