@@ -267,7 +267,7 @@ int main(int argc, const char** argv) {
 				for (p = 0; p < tempUpperLim; ++p) {
 					//for each point we make a vector in time 
 					std::vector<double> tempRow;
-					for (int _x = 0; _x < 80; ++_x) {
+					for (int _x = 0; _x < 100; ++_x) {
 						if (round(BCGResult[_x][p]) == 0) {
 							startingNoise = _x;
 						}
@@ -289,11 +289,23 @@ int main(int argc, const char** argv) {
 
 					if (!tempRow.empty()) {
 						resultVector.push_back(tempRow);
+						std::cout << "resultVector size is:" << resultVector.size() << std::endl;
 					}
 
 				}
+				std::vector<double> t, sig;
+				for (int i = 0; i < numFrames; i++) {
+					double t_ = timeVec[i];
+					double sig_ = resultVector[0][i];
+					t.push_back(t_);
+					sig.push_back(sig_);
+				}
+				plt::figure(0);
+				if (!sig.empty()) {
+					plt::plot(t, sig);
+				}
+				plt::show();
 
-				std::cout << "resultVector size is:" << resultVector.size() << std::endl;
 
 			}
 

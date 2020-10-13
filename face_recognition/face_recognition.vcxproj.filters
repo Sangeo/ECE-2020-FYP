@@ -60,16 +60,19 @@
     <ClCompile Include="live_rPPG.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="llive_rBCG.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="fixedCoeff_Filter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="liveRecording_livePlotting.cpp">
+    <ClCompile Include="skinDetectionv2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="skinDetectionv2.cpp">
+    <ClCompile Include="livePlot_rPPG.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="live_rBCG.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="liveplot_rBCG.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -1,5 +1,36 @@
 #include "opencv_helper.h"
 
+// RPPG Live implementation 
+// current issues:
+// 1. Takes roughly a bit more than 4GB of RAM to run this efficiently... 
+// This is due to the high resolution video input we are currently using for the sake of rBCG
+// rPPG does not need such high resolution video inputs, so we can significantly cut down
+// processing time and the RAM used.
+
+// Tasks left to do:
+// 1. Filtering the signal and plotting the signal
+// 2. Outputting the heart rate estimation to the user in the form of puttext to frame.
+// 3. Test for robustness to obstruction to face detection method...
+
+
+const int FILTER_SECTIONS = 12; //12 or 30 
+
+//the following filter uses butterworth bandpass
+const double sos_matrix[12][6] = {
+	{0.821904631289823, -1.62696489036367, 0.821904631289823, 1, -1.65115775247009, 0.956239445176575},
+	{ 0.821904631289823, -1.32674174567684, 0.821904631289823, 1, -1.96106396889903, 0.986723611465211 },
+	{ 0.780764081275640, -1.54692952632525, 0.780764081275640, 1, -1.56427767500315, 0.864961197373822 },
+	{ 0.780764081275640, -1.23429225313410, 0.780764081275640, 1, -1.93459287711451, 0.959002322765484 },
+	{ 0.714686410007531, -1.41854618499363, 0.714686410007531, 1, -1.45294320387794, 0.754222796360954 },
+	{ 0.714686410007531, -1.06823178848402, 0.714686410007531, 1, -1.90430891262403, 0.926726397665631 },
+	{ 0.611402310616563, -1.21661813952701, 0.611402310616563, 1, -1.86538074368294, 0.885520925318713 },
+	{ 0.611402310616563, -0.787144826085887, 0.611402310616563, 1, -1.31144754653070, 0.610589268539194 },
+	{ 0.461489552066884, -0.920876339017339, 0.461489552066884, 1, -1.81057593401990, 0.829235052618707 },
+	{ 0.461489552066884, -0.322599196669853, 0.461489552066884, 1, -1.16218727318019, 0.441359420631550 },
+	{ 0.299969123764612, -0.599764553627771, 0.299969123764612, 1, -1.73181537720060, 0.752138831145407 },
+	{ 0.299969123764612, 0.349792836547195, 0.299969123764612, 1, -1.08728905725033, 0.313519738807378 } };
+
+
 namespace plt = matplotlibcpp;
 using namespace cv;
 cv::CascadeClassifier face_cascade;
@@ -15,9 +46,10 @@ std::deque<double> topLeftY;
 std::deque<double> botRightX;
 std::deque<double> botRightY;
 std::vector<double> timeVec;
+std::vector<double> timeVecOutput;
 std::vector<double> rPPGSignal;
+std::vector<double> rPPGSignalFiltered;
 std::vector<double> rBCGSignal;
-const int MAX_BUFFER_SIZE = 900;
 
 int strideLength = 45; // size of the temporal stride 
 					//(45 frames as this should capture the heart rate information)
@@ -40,6 +72,9 @@ Mat spatialRotation(
 	std::deque<Mat> skinFrameQ,
 	Mat longTermPulseVector,
 	int capLength);
+
+std::vector<double> sosFilter(
+	std::vector<double> signal);
 
 int main(int argc, const char** argv) {
 
@@ -83,12 +118,23 @@ int main(int argc, const char** argv) {
 	bool initialising = true;
 	bool processing = false;
 	bool recording = true;
-	plt::figure(0);
-	plt::show(false);
 
-	while (true) {
+	plt::figure_size(1000, 500);
+	plt::show(false);
+	bool run = true;
+
+	while (run) {
 		//loop until user presses any key to exit
-		if (cv::waitKey(1) > 0) break;
+		if (cv::waitKey(1) > 0) {
+			std::cout << "User terminated" << std::endl;
+			run = false;
+			processing = false;
+			recording = false;
+			break;
+		}
+		else {
+
+		}
 		//Record frames into queue
 		cv::Mat frame;
 		cv::Mat text(100, 500, CV_8UC1);;
@@ -108,17 +154,36 @@ int main(int argc, const char** argv) {
 				auto ms = std::chrono::duration_cast<milliseconds>(end - start);
 				double captureTime = ms.count() / 1000;
 				if (!frame.empty()) {
-
+					double scaleFactor = 1.0 / 2.0;
 					if (initialising) {
 						text.setTo(0);
-						cv::putText(frame, "Initialising", cv::Point(10, 40), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(128));
-						cv::imshow("Live-Camera Footage", frame);
-						if (cv::waitKey(1) > 0) break;
+						cv::putText(frame, "Initialising", cv::Point(15, 70),
+							cv::FONT_HERSHEY_SIMPLEX, 2, cv::Scalar(255, 255, 255), 2);
+						Mat resizedFrame;
+						cv::resize(frame, resizedFrame, cv::Size(), scaleFactor, scaleFactor);
+						if (!resizedFrame.empty())
+							imshow("Live-Camera Footage", resizedFrame);
+						if (cv::waitKey(1) > 0) {
+							run = false;
+							processing = false;
+							recording = false;
+							break;
+						}
 					}
 					else {
-						cv::imshow("Live-Camera Footage", frame);
-						if (cv::waitKey(1) > 0) break;
-
+						text.setTo(0);
+						cv::putText(frame, "Recording! Try to keep still...", cv::Point(15, 70),
+							cv::FONT_HERSHEY_SIMPLEX, 2, cv::Scalar(255, 255, 255), 2);
+						Mat resizedFrame;
+						cv::resize(frame, resizedFrame, cv::Size(), scaleFactor, scaleFactor);
+						if (!resizedFrame.empty())
+							imshow("Live-Camera Footage", resizedFrame);
+						if (cv::waitKey(1) > 0) {
+							run = false;
+							processing = false;
+							recording = false;
+							break;
+						}
 					}
 				}
 				if (!timeVec.empty()) {
@@ -129,15 +194,21 @@ int main(int argc, const char** argv) {
 					timeVec.push_back(ms.count());
 				}
 
-				if (timeVec.size() > MAX_BUFFER_SIZE) {
+				if (timeVec.size() > numFrames) {
+					//timeVec will continuously be replaced with newer values 
 					assert(!timeVec.empty());
 					timeVec.erase(timeVec.begin());
 				}
 			}
-			cv::destroyWindow("Live-camera Footage");
-
-			recording = false;
-			processing = true;
+			cv::destroyWindow("Live-Camera Footage");
+			if (run == false) {
+				processing = false;
+				recording = false;
+			}
+			else {
+				recording = false;
+				processing = true;
+			}
 		}
 		//Process frames in the queue, store result in vector 
 		if (!recording && processing) {
@@ -151,53 +222,65 @@ int main(int argc, const char** argv) {
 				std::deque<Mat> skinFrameQ;
 				for (size_t j = 0; j < numFrames; j++) {
 					skinFrame = detectAndDisplay(frameQ[j].clone());
-					
+
 					if (!skinFrame.empty()) {
 						skinFrameQ.push_back(skinFrame);
 					}
-					else {
+					else { //to avoid crashing if a face is not detected
 						skinFrame = skinFrameQ[j - 1];
 						skinFrameQ.push_back(skinFrame);
 					}
 				}
 				SRResult = spatialRotation(skinFrameQ, SRResult, numFrames);
-				
-				std::vector <double> x, y;
-				for (int i = 0; i < (numFrames - 1); i++) {
+
+				std::vector <double> x, Raw_rPPG_signal;
+				for (int i = 0; i < numFrames; i++) {
 					double t = timeVec.at(i) / 1000;
 					double sig = (double)SRResult.at<float>(i);
 
 					x.push_back(t);
-					y.push_back(sig);
+					Raw_rPPG_signal.push_back(sig);
 					rPPGSignal.push_back(sig);
-					if (rPPGSignal.size() > MAX_BUFFER_SIZE) {
-						assert(!rPPGSignal.empty());
-						rPPGSignal.erase(rPPGSignal.begin());
-					}
-					
+					timeVecOutput.push_back(t);
+
 				}
-				
-				plt::subplot(2, 1, 1);
-				plt::plot(x, y);
+
+				plt::plot(x, Raw_rPPG_signal, { {"color","blue"},{"label","Raw Signal"} });
 				plt::title("Estimated heart rate signal (time-domain)");
 				plt::xlabel("Time (s)");
 				plt::ylabel("Measured Rotation");
-				plt::draw();
-				plt::pause(0.001);
+
+
+				std::vector<double> fOut = sosFilter(Raw_rPPG_signal);
+
+				std::vector <double> Filtered_rPPG_signal;
+				for (int m = 0; m < numFrames; m++) {
+					double sig = fOut[m];
+					Filtered_rPPG_signal.push_back(sig);
+					rPPGSignalFiltered.push_back(sig);
+				}
+				plt::plot(x, Filtered_rPPG_signal, { {"color","darkorchid"},{"label","Filtered Signal"} });
+
 
 				frameQ.clear();
 				skinFrameQ.clear();
 				firstStride = true;
 			}
+
+			plt::draw();
+			plt::pause(0.001);
+			plt::save("plot.pdf");
+
 			recording = true;
 			processing = false;
 		}
 
 		//Display results on matplotlib and return to record frames w/o waiting for user interaction
 	}
-
-
-
+	plt::draw();
+	plt::pause(0.001);
+	plt::legend();
+	plt::save("plot.pdf");
 
 	std::cout << "the program has stopped" << std::endl;
 	return 99;
@@ -373,10 +456,7 @@ Rect findPoints(std::vector<Rect> faces, int bestIndex, double scaleFactor) {
 	lBound = (0, 133, 70);
 	uBound = (255, 173, 127);
 
-	2. HSV values
-	lBound = (0, 30, 70);
-	lBound = (17, 170, 255);
-	The obtained skin mask will be applied using a 10,10 kernel which with the use of
+		The obtained skin mask will be applied using a 10,10 kernel which with the use of
 	morphologyex (opening), clearing out false positives outside the face
 
 */
@@ -385,36 +465,65 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	Mat frameFace = frameC(originalFaceRect).clone();
 	//shrink the region of interest to a face centric region
 	Point2i tempTL, tempBR;
-	tempTL.x = 60;
-	tempTL.y = 60;
-	tempBR.x = frameFace.rows - 60;
+	tempTL.x = 70;
+	tempTL.y = 50;
+	tempBR.x = frameFace.rows - 70;
 	tempBR.y = frameFace.cols - 140;
 	Rect tempRect(tempTL, tempBR);
 	frameFace = frameFace(tempRect);
 
 	Mat yccFace, imgFilter;
 	cv::cvtColor(frameFace, yccFace, COLOR_BGR2YCrCb, CV_8U);
-	int min_cr, min_cb, max_cr, max_cb;
-	min_cr = 133;
-	max_cr = 173;
-	min_cb = 77;
-	max_cb = 127;
+
+	int histSize = 256;
+	float range[] = { 0, 256 }; //the upper boundary is exclusive
+	const float* histRange = { range };
+	bool uniform = true, accumulate = false;
 
 	//low-pass spatial filtering to remove high frequency content
 	blur(yccFace, yccFace, Size(5, 5));
+	std::vector<Mat> YCrCb_planes;
+	split(yccFace, YCrCb_planes);
+	Mat y_hist, cr_hist, cb_hist;
+	calcHist(&YCrCb_planes[0], 1, 0, Mat(), y_hist, 1, &histSize, &histRange, uniform, accumulate);
+	calcHist(&YCrCb_planes[1], 1, 0, Mat(), cr_hist, 1, &histSize, &histRange, uniform, accumulate);
+	calcHist(&YCrCb_planes[2], 1, 0, Mat(), cb_hist, 1, &histSize, &histRange, uniform, accumulate);
+
+	//unfortunately i need to define all the following parameters for this to work..
+	double y_min, cr_min, cb_min;
+	double y_max, cr_max, cb_max;
+	Point y_min_loc, cr_min_loc, cb_min_loc;
+	Point y_max_loc, cr_max_loc, cb_max_loc;
+	cv::minMaxLoc(y_hist, &y_min, &y_max, &y_min_loc, &y_max_loc);
+	cv::minMaxLoc(cr_hist, &cr_min, &cr_max, &cr_min_loc, &cr_max_loc);
+	cv::minMaxLoc(cb_hist, &cb_min, &cb_max, &cb_min_loc, &cb_max_loc);
+
+	/*std::cout << "y_max location: " << y_max_loc.y
+		<< " cr_max location: " << cr_max_loc.y
+		<< " cb_max location: " << cb_max_loc.y << std::endl;*/
+
+	int min_cr, min_cb, max_cr, max_cb;
+	min_cr = cr_max_loc.y - 10;
+	max_cr = cr_max_loc.y + 10;
+	min_cb = cb_max_loc.y - 10;
+	max_cb = cb_max_loc.y + 10;
+
 
 	//colour segmentation
 	cv::inRange(yccFace, Scalar(0, min_cr, min_cb), Scalar(255, max_cr, max_cb), imgFilter);
 
 	//Morphology on the imgFilter to remove noise introduced by colour segmentation
-	Mat kernel = Mat::ones(Size(7, 7), CV_8U);
-	cv::morphologyEx(imgFilter, imgFilter, MORPH_OPEN, kernel, Point(-1, -1), 2);
-	cv::morphologyEx(imgFilter, imgFilter, MORPH_CLOSE, kernel, Point(-1, -1), 2);
-	Mat skin;
+	//Mat kernel = Mat::ones(Size(7, 7), CV_8U);
+	Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, Size(5, 5));
+	cv::morphologyEx(imgFilter, imgFilter, cv::MORPH_OPEN, kernel, Point(-1, -1), 3);
+	cv::morphologyEx(imgFilter, imgFilter, cv::MORPH_CLOSE, kernel, Point(-1, -1), 3);
 
-	//return our detected skin values
+	Mat skin;
+	//return our detected skin valuessc
 	frameFace.copyTo(skin, imgFilter);
 	//imshow("SKIN", skin);
+	//imshow("imgFilter raw", imgFilter);
+	//cv::waitKey(1);
 
 	return skin;
 }
@@ -425,7 +534,7 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 	std::deque<Mat> eigVecArray; // This will contain the eigenvectors
 	std::vector<Mat> SRDash;
 	// for each frame in the queue 
-	for (size_t i = 1; i <= capLength; i++) {
+	for (size_t i = 0; i < capLength; i++) {
 		//our skinFrames are queued in a deque, which can be accessed using a for loop
 		//this retrieves a single skin frame from the queue, but this will contain many zeros
 		Mat temp = skinFrameQ.front().clone();
@@ -489,13 +598,13 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 		Mat uTime, lambdaTime;
 		Mat RDash, S; //R' and S
 
-		int tempTau = i - strideLength + 1;
+		int tempTau = (i + 1) - strideLength + 1;
 		if (tempTau > 0) {
 			uTau = eigVecArray[tempTau - 1].clone();
 			lambdaTau = eigValArray[tempTau - 1].clone();
 
 			int t; //this will need to be re-used for t 
-			for (t = tempTau; t < i; t++) {
+			for (t = tempTau; t < (i + 2); t++) { // note this needs to be i+2
 				//current values of the eigenvector and eigenvalues
 				uTime = eigVecArray[t - 1].clone();
 				lambdaTime = eigValArray[t - 1].clone();
@@ -586,8 +695,7 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 			else {
 				longTermPulseVector.push_back(float(0));
 				int y = 0;
-				for (size_t x = t - strideLength; x < i; x++) {
-
+				for (size_t x = t - strideLength; x < (i + 1); x++) {
 					longTermPulseVector.at<float>(x) = longTermPulseVector.at<float>(x) + tempPulse.at<float>(y);
 					y++;
 				}
@@ -598,9 +706,6 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 				std::cout << "Temp: " << std::endl << tempPulse << std::endl;
 			}
 			SRDash.clear();
-
-
-
 		}
 	}
 	//clean memory registers
@@ -610,4 +715,60 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 
 	//std::cout << "Current Length of Long-term Pulse Vector :" << longTermPulseVector.rows << std::endl;
 	return longTermPulseVector;
+}
+
+
+std::vector<double> sosFilter(std::vector<double> signal) {
+
+	std::vector<double> output;
+	output.resize(signal.size());
+
+	double** tempOutput = new double* [FILTER_SECTIONS];
+	for (int i = 0; i < FILTER_SECTIONS; i++)
+		tempOutput[i] = new double[signal.size()];
+	for (int i = 0; i < FILTER_SECTIONS; i++) {
+		for (int j = 0; j < signal.size(); j++) {
+			tempOutput[i][j] = 0;
+		}
+	}
+
+	for (int i = 0; i < signal.size(); i++) {
+
+		if (i - 2 < 0) {
+			//std::cout << "skipping some stuff" << std::endl;
+			continue;
+		}
+
+		double b0, b1, b2, a1, a2;
+		double result;
+		//for each section
+		for (int j = 0; j < FILTER_SECTIONS; j++) {
+
+			b0 = sos_matrix[j][0];
+			b1 = sos_matrix[j][1];
+			b2 = sos_matrix[j][2];
+			a1 = sos_matrix[j][4];
+			a2 = sos_matrix[j][5];
+
+			if (j == 0) {
+				result = b0 * signal[i] + b1 * signal[i - 1] + b2 * signal[i - 2]
+					- a1 * tempOutput[j][i - 1] - a2 * tempOutput[j][i - 2];
+				tempOutput[j][i] = result;
+			}
+			else {
+				result = b0 * tempOutput[j - 1][i] + b1 * tempOutput[j - 1][i - 1] + b2 * tempOutput[j - 1][i - 2]
+					- a1 * tempOutput[j][i - 1] - a2 * tempOutput[j][i - 2];
+				tempOutput[j][i] = result;
+			}
+
+		}
+
+
+	}
+	for (int x = 0; x < signal.size(); x++) {
+		output[x] = tempOutput[FILTER_SECTIONS - 1][x];
+		//std::cout << "output: " << output[x] << std::endl;
+	}
+
+	return output;
 }
