@@ -8,28 +8,9 @@
 // processing time and the RAM used.
 
 // Tasks left to do:
-// 1. Filtering the signal and plotting the signal
-// 2. Outputting the heart rate estimation to the user in the form of puttext to frame.
+// 1. Filtering the signal and plotting the signal (DONE)
+// 2. Outputting the heart rate estimation to the user in the form of puttext to frame. 
 // 3. Test for robustness to obstruction to face detection method...
-
-
-const int FILTER_SECTIONS = 12; //12 or 30 
-
-//the following filter uses butterworth bandpass
-const double sos_matrix[12][6] = {
-	{0.821904631289823, -1.62696489036367, 0.821904631289823, 1, -1.65115775247009, 0.956239445176575},
-	{ 0.821904631289823, -1.32674174567684, 0.821904631289823, 1, -1.96106396889903, 0.986723611465211 },
-	{ 0.780764081275640, -1.54692952632525, 0.780764081275640, 1, -1.56427767500315, 0.864961197373822 },
-	{ 0.780764081275640, -1.23429225313410, 0.780764081275640, 1, -1.93459287711451, 0.959002322765484 },
-	{ 0.714686410007531, -1.41854618499363, 0.714686410007531, 1, -1.45294320387794, 0.754222796360954 },
-	{ 0.714686410007531, -1.06823178848402, 0.714686410007531, 1, -1.90430891262403, 0.926726397665631 },
-	{ 0.611402310616563, -1.21661813952701, 0.611402310616563, 1, -1.86538074368294, 0.885520925318713 },
-	{ 0.611402310616563, -0.787144826085887, 0.611402310616563, 1, -1.31144754653070, 0.610589268539194 },
-	{ 0.461489552066884, -0.920876339017339, 0.461489552066884, 1, -1.81057593401990, 0.829235052618707 },
-	{ 0.461489552066884, -0.322599196669853, 0.461489552066884, 1, -1.16218727318019, 0.441359420631550 },
-	{ 0.299969123764612, -0.599764553627771, 0.299969123764612, 1, -1.73181537720060, 0.752138831145407 },
-	{ 0.299969123764612, 0.349792836547195, 0.299969123764612, 1, -1.08728905725033, 0.313519738807378 } };
-
 
 namespace plt = matplotlibcpp;
 using namespace cv;
@@ -122,6 +103,8 @@ int main(int argc, const char** argv) {
 	plt::figure_size(1000, 500);
 	plt::show(false);
 	bool run = true;
+	
+	double rPPG_WindowEstimate = 0.0;
 
 	while (run) {
 		//loop until user presses any key to exit
@@ -137,7 +120,6 @@ int main(int argc, const char** argv) {
 		}
 		//Record frames into queue
 		cv::Mat frame;
-		cv::Mat text(100, 500, CV_8UC1);;
 		if (recording && !processing) {
 			if (initialising) {
 				numFrames = 30 * 5;
@@ -156,7 +138,6 @@ int main(int argc, const char** argv) {
 				if (!frame.empty()) {
 					double scaleFactor = 1.0 / 2.0;
 					if (initialising) {
-						text.setTo(0);
 						cv::putText(frame, "Initialising", cv::Point(15, 70),
 							cv::FONT_HERSHEY_SIMPLEX, 2, cv::Scalar(255, 255, 255), 2);
 						Mat resizedFrame;
@@ -171,13 +152,19 @@ int main(int argc, const char** argv) {
 						}
 					}
 					else {
-						text.setTo(0);
 						cv::putText(frame, "Recording! Try to keep still...", cv::Point(15, 70),
 							cv::FONT_HERSHEY_SIMPLEX, 2, cv::Scalar(255, 255, 255), 2);
+						
+						char buffer[50];
+						sprintf_s(buffer, "Previous Estimate of Heart-Rate is: %.2f", rPPG_WindowEstimate);
+						cv::putText(frame, buffer, cv::Point(15, 140), 
+							cv::FONT_HERSHEY_SIMPLEX, 2, cv::Scalar(255, 255, 255), 2);
+
 						Mat resizedFrame;
 						cv::resize(frame, resizedFrame, cv::Size(), scaleFactor, scaleFactor);
 						if (!resizedFrame.empty())
 							imshow("Live-Camera Footage", resizedFrame);
+
 						if (cv::waitKey(1) > 0) {
 							run = false;
 							processing = false;
@@ -261,6 +248,20 @@ int main(int argc, const char** argv) {
 				}
 				plt::plot(x, Filtered_rPPG_signal, { {"color","darkorchid"},{"label","Filtered Signal"} });
 
+				//peak detection 
+				std::vector<int> peakLocs;
+				Peaks::findPeaks(Filtered_rPPG_signal, peakLocs);
+				//peak distance calculation
+				std::vector<double> diffTime;
+				for (size_t i = 0; i < peakLocs.size(); i++) {
+					diffTime.push_back(x[peakLocs[i]]);
+					std::cout << "time: " << x[peakLocs[i]] << "peak location at: " << peakLocs[i] << std::endl;
+				}
+				diff(diffTime, diffTime);
+				double mean_diffTime = std::accumulate(diffTime.begin(), diffTime.end(), 0.0) / diffTime.size();
+				std::cout << "Average time between peaks: " << mean_diffTime << std::endl;
+				std::cout << "Estimated heart rate: " << 60.0 / mean_diffTime << std::endl;
+				rPPG_WindowEstimate = 60.0 / mean_diffTime; //update the current heart rate estimate
 
 				frameQ.clear();
 				skinFrameQ.clear();

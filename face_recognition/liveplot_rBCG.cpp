@@ -17,7 +17,6 @@ std::deque<double> botRightX;
 std::deque<double> botRightY;
 std::vector<double> timeVec;
 
-
 int strideLength = 45; // size of the temporal stride 
 					//(45 frames as this should capture the heart rate information)
 bool firstStride = true;
@@ -29,6 +28,9 @@ Rect findPoints(
 	std::vector<Rect> faces,
 	int bestIndex,
 	double scaleFactor);
+
+std::vector<double> sosFilter(
+	std::vector<double> signal);
 
 int main(int argc, const char** argv) {
 
@@ -247,57 +249,92 @@ int main(int argc, const char** argv) {
 				int startingNoise = 20;
 				int p = 0, q = 0;
 				int tempUpperLim = POINTS_UPPER_LIM;
-
+				bool foundNoise = false;
 				for (p = 0; p < tempUpperLim; ++p) {
 					//for each point we make a vector in time 
-					std::vector<double> tempRow;
 					for (int _x = 0; _x < 100; ++_x) {
 						if (round(BCGResult[_x][p]) == 0) {
 							startingNoise = _x;
 						}
 					}
-					std::cout << "starting position: " << startingNoise;
+				}
+				//std::cout << "starting position: " << startingNoise;
+				for (p = 0; p < tempUpperLim; ++p) {
+					std::vector<double> tempRow;
 					for (q = startingNoise + 1; q < numFrames; ++q) {
 						//add to the point in the vector
 						tempRow.push_back(BCGResult[q][p]);
-
-						//check if there's any discontinuity in the frame
+						//check if there's any discontinuity in the frame before the end
 						if (round(BCGResult[q][p]) == 0.0) {
 							std::cout << "hit a 0 at row: " << p
 								<< "time: " << q << std::endl;
 							tempUpperLim = p;
-							tempRow.clear();
+							tempRow.clear(); // dump the row entirely
 							break;
 						}
 					}
 
 					if (!tempRow.empty()) {
 						resultVector.push_back(tempRow);
-						std::cout << "resultVector size is:" << resultVector.size() << std::endl;
+						//std::cout << "resultVector size is:" << resultVector.size() << std::endl;
 					}
 
 				}
 				std::vector<double> t, sig;
-				for (int i = startingNoise + 1; i < numFrames; i++) {
-					double t_ = timeVec[i] / 1000.0;
-					for (int j = 0; j < tempUpperLim; j++) {
-						double sig_ = resultVector[j][i - (startingNoise + 1)];
-						if (sig_ == 0)
-							std::cout << "time: " << t_ << " signal: " << sig_ << std::endl;
+				for (int x = startingNoise + 1; x < numFrames; x++) {
+					double t_ = timeVec[x] / 1000.0;
+					double sig_ = 0;
+					for (int y = 0; y < tempUpperLim; y++) {
+						double temp = resultVector[y][x - (startingNoise + 1)];
+						sig_ += temp;
 					}
-
-					
-
-					t.push_back(t_);
+					sig_ /= tempUpperLim;
 					sig.push_back(sig_);
-
+					t.push_back(t_);
 				}
+
+				double sig_mean = std::accumulate(sig.begin(), sig.end(), 0.0) / sig.size();
+
+				std::vector<double> sig_lessMean;
+				for (int i = 0; i < sig.size(); i++) {
+					double temp = sig[i] - sig_mean;
+					sig_lessMean.push_back(temp);
+					//std::cout << "i: " << i << "signal value: " << temp << std::endl;
+				}
+
+				if (DEBUG_MODE) {
+					//std::cout << "sig_mean: " << sig_mean << std::endl;
+					//std::cout << "t size: " << t.size() << "sig vec size: " << sig_lessMean.size() << std::endl;
+				}
+				std::vector<double> filtSig = sosFilter(sig_lessMean);
+				
+				//peak detection 
+				std::vector<int> peakLocs;
+				Peaks::findPeaks(filtSig, peakLocs);
+				std::cout << "peakLocs size: " << peakLocs.size() << std::endl;
+				//peak distance calculation
+				std::vector<double> diffTime;
+				for (size_t i = 0; i < peakLocs.size(); i++) {
+					diffTime.push_back(t[peakLocs[i]]);
+					std::cout << "time: " << t[peakLocs[i]] << "peak location at: " << peakLocs[i] << std::endl;
+				}
+				diff(diffTime, diffTime);
+				double mean_diffTime = std::accumulate(diffTime.begin(), diffTime.end(), 0.0) / diffTime.size();
+				std::cout << "Average time between peaks: " << mean_diffTime << std::endl;
+				std::cout << "Estimated heart rate: " << 60.0 / mean_diffTime << std::endl;
+
 				plt::figure(0);
 				if (!sig.empty()) {
-					plt::plot(t, sig);
+					plt::subplot(2, 1, 1);
+					plt::plot(t, sig_lessMean);
+					plt::xlabel("time (seconds)");
+					plt::ylabel("nominal displacement (pixels)");
+					plt::subplot(2, 1, 2);
+					plt::plot(t, filtSig);
+					plt::xlabel("time (seconds)");
+					plt::ylabel("nominal displacement (pixels)");
 				}
 				plt::show();
-
 
 			}
 
@@ -476,5 +513,61 @@ Rect findPoints(std::vector<Rect> faces, int bestIndex, double scaleFactor) {
 	}
 
 	return Rect();
+}
+
+
+
+std::vector<double> sosFilter(std::vector<double> signal) {
+
+	std::vector<double> output;
+	output.resize(signal.size());
+
+	double** tempOutput = new double* [FILTER_SECTIONS];
+	for (int i = 0; i < FILTER_SECTIONS; i++)
+		tempOutput[i] = new double[signal.size()];
+	for (int i = 0; i < FILTER_SECTIONS; i++) {
+		for (int j = 0; j < signal.size(); j++) {
+			tempOutput[i][j] = 0;
+		}
+	}
+
+	for (int i = 0; i < signal.size(); i++) {
+
+		if (i - 2 < 0) {
+			//std::cout << "skipping some stuff" << std::endl;
+			continue;
+		}
+
+		double b0, b1, b2, a1, a2;
+		double result;
+		//for each section
+		for (int j = 0; j < FILTER_SECTIONS; j++) {
+
+			b0 = sos_matrix[j][0];
+			b1 = sos_matrix[j][1];
+			b2 = sos_matrix[j][2];
+			a1 = sos_matrix[j][4];
+			a2 = sos_matrix[j][5];
+
+			if (j == 0) {
+				result = b0 * signal[i] + b1 * signal[i - 1] + b2 * signal[i - 2]
+					- a1 * tempOutput[j][i - 1] - a2 * tempOutput[j][i - 2];
+				tempOutput[j][i] = result;
+			}
+			else {
+				result = b0 * tempOutput[j - 1][i] + b1 * tempOutput[j - 1][i - 1] + b2 * tempOutput[j - 1][i - 2]
+					- a1 * tempOutput[j][i - 1] - a2 * tempOutput[j][i - 2];
+				tempOutput[j][i] = result;
+			}
+
+		}
+
+	}
+	for (int x = 0; x < signal.size(); x++) {
+		output[x] = tempOutput[FILTER_SECTIONS - 1][x];
+		//std::cout << "output: " << output[x] << std::endl;
+	}
+
+	return output;
 }
 
