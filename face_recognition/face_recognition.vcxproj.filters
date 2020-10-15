@@ -75,6 +75,9 @@
     <ClCompile Include="liveplot_rBCG.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="combinedSolution.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Documents\OpenCV\sources\modules\objdetect\include\opencv2\objdetect.hpp">

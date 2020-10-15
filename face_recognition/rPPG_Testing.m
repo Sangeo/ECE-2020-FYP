@@ -17,8 +17,8 @@ hold on;
 plot(t,y);
 
 D2 = designfilt('bandpassiir', 'StopbandFrequency1', 0.6, 'PassbandFrequency1', 0.8,...
-    'PassbandFrequency2', 3, 'StopbandFrequency2', 3.5, 'StopbandAttenuation1', 25, ...
-    'PassbandRipple', 1, 'StopbandAttenuation2', 25, 'SampleRate', 29, 'DesignMethod', 'cheby2');
+    'PassbandFrequency2', 3, 'StopbandFrequency2', 3.2, 'StopbandAttenuation1', 40, ...
+    'PassbandRipple', 1, 'StopbandAttenuation2', 40, 'SampleRate', 30);
 bpSig=filtfilt(D2,x);
 % plot(t,bpSig/100);
 legend('raw','filtered 1','filtered 2');

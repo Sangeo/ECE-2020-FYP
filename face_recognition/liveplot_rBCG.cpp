@@ -136,6 +136,7 @@ int main(int argc, const char** argv) {
 				firstTime = false;
 			}
 			else {
+				
 				const int POINTS_UPPER_LIM = 10;
 				double** BCGResult = new double* [numFrames];
 				for (int i = 0; i < numFrames; i++) {
@@ -280,6 +281,8 @@ int main(int argc, const char** argv) {
 					}
 
 				}
+
+				//determinantion for average of all signals over a period of time.
 				std::vector<double> t, sig;
 				for (int x = startingNoise + 1; x < numFrames; x++) {
 					double t_ = timeVec[x] / 1000.0;
@@ -293,30 +296,34 @@ int main(int argc, const char** argv) {
 					t.push_back(t_);
 				}
 
+				//finding signal mean
 				double sig_mean = std::accumulate(sig.begin(), sig.end(), 0.0) / sig.size();
 
+				//mean subtracted signal for analysis 
 				std::vector<double> sig_lessMean;
 				for (int i = 0; i < sig.size(); i++) {
 					double temp = sig[i] - sig_mean;
 					sig_lessMean.push_back(temp);
-					//std::cout << "i: " << i << "signal value: " << temp << std::endl;
 				}
 
+
 				if (DEBUG_MODE) {
-					//std::cout << "sig_mean: " << sig_mean << std::endl;
-					//std::cout << "t size: " << t.size() << "sig vec size: " << sig_lessMean.size() << std::endl;
+					std::cout << "sig_mean: " << sig_mean << std::endl;
+					std::cout << "t size: " << t.size() << "sig vec size: " << sig_lessMean.size() << std::endl;
 				}
+				
+				//Filter the signal with a IIR Butterworth Bandpass Filter
 				std::vector<double> filtSig = sosFilter(sig_lessMean);
 				
 				//peak detection 
 				std::vector<int> peakLocs;
 				Peaks::findPeaks(filtSig, peakLocs);
 				std::cout << "peakLocs size: " << peakLocs.size() << std::endl;
-				//peak distance calculation
+				//peak-to-peak distance calculation
 				std::vector<double> diffTime;
 				for (size_t i = 0; i < peakLocs.size(); i++) {
 					diffTime.push_back(t[peakLocs[i]]);
-					std::cout << "time: " << t[peakLocs[i]] << "peak location at: " << peakLocs[i] << std::endl;
+					//std::cout << "time: " << t[peakLocs[i]] << "peak location at: " << peakLocs[i] << std::endl;
 				}
 				diff(diffTime, diffTime);
 				double mean_diffTime = std::accumulate(diffTime.begin(), diffTime.end(), 0.0) / diffTime.size();
@@ -570,4 +577,3 @@ std::vector<double> sosFilter(std::vector<double> signal) {
 
 	return output;
 }
-
