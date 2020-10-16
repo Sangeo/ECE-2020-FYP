@@ -255,10 +255,31 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	Mat frameFace = frameC(originalFaceRect).clone();
 	//shrink the region of interest to a face centric region
 	Point2i tempTL, tempBR;
-	tempTL.x = 70;
-	tempTL.y = 50;
-	tempBR.x = frameFace.rows - 70;
-	tempBR.y = frameFace.cols - 140;
+	int tlX, tlY, brX, brY;
+	tlX = 0;
+	tlY = 0;
+	brX = frameFace.cols;
+	brY = frameFace.rows;
+
+	tempTL.x = tlX + (brX - tlX) * 0.1;
+	if (tempTL.x <= 0) {
+		tempTL.x = originalFaceRect.tl().x;
+	}
+	tempTL.y = tlY + (brY - tlY) * 0.1;
+	if (tempTL.y <= 0) {
+		tempTL.y = originalFaceRect.tl().y;
+	}
+	tempBR.x = brX - (brX - tlX) * 0.1;
+	if (tempBR.x >= frameFace.cols) {
+		tempBR.x = originalFaceRect.br().x;
+		std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
+	}
+	tempBR.y = brY - (brY - tlY) * 0.1;
+	if (tempBR.y >= frameFace.rows) {
+		tempBR.y = originalFaceRect.br().y;
+		std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;
+	}
+
 	Rect tempRect(tempTL, tempBR);
 	frameFace = frameFace(tempRect);
 

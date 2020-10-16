@@ -26,7 +26,7 @@ typedef std::chrono::high_resolution_clock Clock;
 typedef std::chrono::milliseconds milliseconds;
 
 const bool DEBUG_MODE = false;
-const bool DEBUG_MODE2 = false;
+const bool DEBUG_MODE2 = true;
 
 std::deque<double> topLeftX;
 std::deque<double> topLeftY;
@@ -375,15 +375,34 @@ Rect findPoints(std::vector<Rect> faces, int bestIndex, double scaleFactor) {
 */
 Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 
-	Mat frameFace = frameC(originalFaceRect).clone();
 	//shrink the region of interest to a face centric region
 	Point2i tempTL, tempBR;
-	tempTL.x = 70;
-	tempTL.y = 50;
-	tempBR.x = frameFace.rows - 70;
-	tempBR.y = frameFace.cols - 140;
+	int tlX, tlY, brX, brY;
+	tlX = originalFaceRect.tl().x;
+	tlY = originalFaceRect.tl().y;
+	brX = originalFaceRect.br().x;
+	brY = originalFaceRect.br().y;
+
+	tempTL.x = tlX + (brX - tlX) * 0.05;
+	if (tempTL.x <= 0) {
+		tempTL.x = originalFaceRect.tl().x;
+	}
+	tempTL.y = tlY + (brY - tlY) * 0.1;
+	if (tempTL.y <= 0) {
+		tempTL.y = originalFaceRect.tl().y;
+	}
+	tempBR.x = brX - (brX - tlX) * 0.05;
+	if (tempBR.x >= frameC.cols) {
+		tempBR.x = originalFaceRect.br().x;
+		std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
+	}
+	tempBR.y = brY - (brY - tlY) * 0.05;
+	if (tempBR.y >= frameC.rows) {
+		tempBR.y = originalFaceRect.br().y;
+		std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;
+	}
 	Rect tempRect(tempTL, tempBR);
-	frameFace = frameFace(tempRect);
+	Mat frameFace = frameC(tempRect);
 
 	Mat yccFace, imgFilter;
 	cv::cvtColor(frameFace, yccFace, COLOR_BGR2YCrCb, CV_8U);
@@ -430,6 +449,11 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	Mat skin;
 	//return our detected skin values
 	frameFace.copyTo(skin, imgFilter);
+	if (DEBUG_MODE2) {
+		imshow("skinFrame", skin);
+		cv::waitKey(1);
+	}
+
 
 	return skin;
 }
@@ -440,7 +464,7 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	Input: current frame (raw)
 	Output: current skin (raw);
 */
-std::tuple<Mat, Rect> detectAndDisplay(Mat frame) {
+std::tuple<Mat, Rect> detectAndDisplay(Mat frame, int choice) {
 
 	Mat frameClone = frame.clone();
 	Mat procFrame;
@@ -449,7 +473,13 @@ std::tuple<Mat, Rect> detectAndDisplay(Mat frame) {
 	std::vector<int> numDetections;
 
 	//downsizing image before processing
-	const double scaleFactor = 1.0 / 7.0;
+	double scaleFactor;
+	if (choice == 1) {
+		scaleFactor = 1.0 / 7.0;
+	}
+	else {
+		scaleFactor = 1.0 / 3.0;
+	}
 	resize(frameClone, procFrame, cv::Size(), scaleFactor, scaleFactor);
 	//convert the image into a grayscale image which will be equalised for face detection
 	cvtColor(procFrame, frameGray, COLOR_BGR2GRAY); // convert the current frame into grayscale
@@ -502,20 +532,20 @@ std::tuple<Mat, Rect> detectAndDisplay(Mat frame) {
 
 			// finding appropriate section for skin analysis;
 			Point2i skinTL, skinBR;
-			skinTL.x = faceROI.tl().x - 40;
+			skinTL.x = tlX + (brX - tlX) * 0.1;
 			if (skinTL.x <= 0) {
 				skinTL.x = faceROI.tl().x;
 			}
-			skinTL.y = faceROI.tl().y - 40;
+			skinTL.y = tlY + (brY - tlY) * 0.05; //basically not change
 			if (skinTL.y <= 0) {
 				skinTL.y = faceROI.tl().y;
 			}
-			skinBR.x = faceROI.br().x + 40;
+			skinBR.x = brX - (brX - tlX) * 0.1;
 			if (skinBR.x >= frameClone.cols) {
 				skinBR.x = faceROI.br().x;
 				std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
 			}
-			skinBR.y = faceROI.br().y + 40;
+			skinBR.y = brY - (brY - tlY) * 0.35;
 			if (skinBR.y >= frameClone.rows) {
 				skinBR.y = faceROI.br().y;
 				std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;
@@ -653,7 +683,7 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 		cv::sort(eigVal, sortEigVal, cv::SortFlags::SORT_EVERY_COLUMN + cv::SortFlags::SORT_DESCENDING);
 
 		if (DEBUG_MODE2) {
-			std::cout << "C" << std::endl << C << std::endl;
+			//std::cout << "C" << std::endl << C << std::endl;
 			/*cout << "eigVal" << endl << eigVal << endl;
 			cout << "sortEigVal" << endl << sortEigVal << endl;
 			cout << "eigVec" << endl << eigVec << endl;*/
@@ -679,10 +709,10 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 				lambdaTime = eigValArray[t - 1].clone();
 
 				if (DEBUG_MODE2) {
-					std::cout << "Current values for tau and time are -----------------------------------" << std::endl;
+					/*std::cout << "Current values for tau and time are -----------------------------------" << std::endl;
 					std::cout << "uTau and lambdaTau" << uTau << "," << std::endl << lambdaTau << "," << std::endl;
 					std::cout << "uTime and lambdaTime" << uTime << "," << std::endl << lambdaTime << "," << std::endl;
-					std::cout << std::endl;
+					std::cout << std::endl;*/
 				}
 
 				// calculation for R'
@@ -713,10 +743,10 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 				Mat SR = S.mul(RDash);; // Obtain SR matrix, and adjust with rotation vectors (step (10) of 2SR paper)
 
 				if (DEBUG_MODE2) {
-					std::cout << "result matrix S': " << std::endl << S << std::endl;
+					/*std::cout << "result matrix S': " << std::endl << S << std::endl;
 					std::cout << "result matrix SR': " << std::endl << SR << std::endl;
 					std::cout << "Type of matrix SR': " << SR.type() << std::endl;
-					std::cout << "Rows and columns of SR' are: " << SR.rows << " and " << SR.cols << std::endl;
+					std::cout << "Rows and columns of SR' are: " << SR.rows << " and " << SR.cols << std::endl;*/
 				}
 
 				SR.convertTo(SR, 5); // adjust to 32F rather than double --- needs fixing later
@@ -726,8 +756,8 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 				vconcat(t_2.t(), t_3.t(), backProjectTau);
 				Mat SRBackProjected = SR * backProjectTau;
 				if (DEBUG_MODE2) {
-					std::cout << "the back project vector used for multiplication is : " << std::endl << backProjectTau << std::endl;
-					std::cout << "Backprojected SR' is then equals: " << std::endl << SRBackProjected << std::endl;
+					/*std::cout << "the back project vector used for multiplication is : " << std::endl << backProjectTau << std::endl;
+					std::cout << "Backprojected SR' is then equals: " << std::endl << SRBackProjected << std::endl;*/
 				}
 				// Obtain the SR'
 				SRDash.push_back(SRBackProjected);
@@ -746,9 +776,9 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 			SR_2std = sum(SR_2Stdev)[0];
 
 			if (DEBUG_MODE2) {
-				std::cout << "Current value of t is: " << t << std::endl;
+				/*std::cout << "Current value of t is: " << t << std::endl;
 				std::cout << "Current value of i is: " << i << std::endl;
-				std::cout << "therefore the current value of t - stridelength + 1 is : " << t - strideLength << std::endl << std::endl;
+				std::cout << "therefore the current value of t - stridelength + 1 is : " << t - strideLength << std::endl << std::endl;*/
 			}
 			//Calculate pulse vector 
 			Mat pulseVector;
@@ -771,8 +801,8 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 			}
 
 			if (DEBUG_MODE2) {
-				std::cout << "Current PulseVector before overlap-adding: " << std::endl << pulseVector << std::endl;
-				std::cout << "Temp: " << std::endl << tempPulse << std::endl;
+				/*std::cout << "Current PulseVector before overlap-adding: " << std::endl << pulseVector << std::endl;
+				std::cout << "Temp: " << std::endl << tempPulse << std::endl;*/
 			}
 			SRDash.clear();
 		}
@@ -798,7 +828,7 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, double
 
 	std::vector <double> x, raw_rPPG_signal;
 	for (int i = 0; i < numFrames; i++) {
-		double t = timeVec.at(i) / 1000;
+		double t = timeVec[i] / 1000;
 		double sig = (double)SRResult.at<float>(i);
 
 		x.push_back(t);
@@ -807,7 +837,7 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, double
 		rPPGSignal.push_back(sig);
 		timeVecOutput.push_back(t);
 	}
-
+	
 	std::vector<double> fOut = sosFilter(raw_rPPG_signal);
 
 	std::vector <double> filtered_rPPG_signal;
@@ -823,15 +853,26 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, double
 	//peak distance calculation
 	std::vector<double> diffTime;
 	for (size_t i = 0; i < peakLocs.size(); i++) {
-		diffTime.push_back(x[peakLocs[i]]);
+		if (peakLocs[i] != numFrames) {
+			diffTime.push_back(x[peakLocs[i]]);
+		}
+		else {
+
+		}
 		//std::cout << "time: " << x[peakLocs[i]] << "peak location at: " << peakLocs[i] << std::endl;
 	}
-	
+
 	diff(diffTime, diffTime);
 	double mean_diffTime = std::accumulate(diffTime.begin(), diffTime.end(), 0.0) / diffTime.size();
 	std::cout << "rPPG - Average time between peaks: " << mean_diffTime << std::endl;
 	std::cout << "rPPG - Estimated heart rate: " << 60.0 / mean_diffTime << std::endl;
 	double heartRate = 60.0 / mean_diffTime; //update the current heart rate estimate
+	
+	if (mean_diffTime < 0) {
+		for (size_t i = 0; i < peakLocs.size(); i++) {
+			std::cout << "time: " << x[peakLocs[i]] << "peak location at: " << peakLocs[i] << std::endl;
+		}
+	}
 
 	return std::make_tuple(x, raw_rPPG_signal, filtered_rPPG_signal, heartRate);
 
@@ -927,8 +968,10 @@ KLTEstimate(std::deque<Mat> frameQ, std::vector<Rect> ROI_queue, int numFrames) 
 				initialising = false;
 			}
 
-			//cv::rectangle(temp, ROI, Scalar(0, 255, 0));
-			//cv::imshow("Detected Frame", temp);
+			if (DEBUG_MODE2) {
+				cv::rectangle(temp, ROI, Scalar(0, 255, 0));
+				cv::imshow("Detected Frame", temp);
+			}
 			//frameQ.push_back(newFrame.clone());
 			std::swap(points[1], points[0]);
 
@@ -1040,7 +1083,11 @@ KLTEstimate(std::deque<Mat> frameQ, std::vector<Rect> ROI_queue, int numFrames) 
 	//peak-to-peak distance calculation
 	std::vector<double> diffTime;
 	for (size_t i = 0; i < peakLocs.size(); i++) {
-		diffTime.push_back(t[peakLocs[i]]);
+		if (peakLocs[i] != numFrames && peakLocs[i] != 0) {
+			diffTime.push_back(t[peakLocs[i]]);
+		}
+		else {
+		}
 		//std::cout << "time: " << t[peakLocs[i]] << "peak location at: " << peakLocs[i] << std::endl;
 	}
 	diff(diffTime, diffTime);
