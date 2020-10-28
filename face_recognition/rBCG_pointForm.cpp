@@ -14,7 +14,27 @@
 */
 
 
-#include "opencv_helper.h"
+#include "opencv2/objdetect.hpp"
+#include "opencv2/video/tracking.hpp"
+#include "opencv2/highgui.hpp"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/videoio.hpp"
+#include "opencv2/core/matx.hpp"
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <vector>
+#include <future>
+#include <deque>
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include "fftw3.h"
+#include "Python.h"
+#include "matplotlibcpp.h"
+#include <algorithm>
+#include <tuple>
+
 
 using namespace cv;
 using namespace std;
@@ -62,10 +82,10 @@ int main(int argc, const char** argv) {
 		return -1;
 	};
 	//Get video input/output setup
-	cv::VideoCapture capture(0);
+	cv::VideoCapture capture(1);
 	capture.set(CAP_PROP_FPS, 30);
-	capture.set(CAP_PROP_FRAME_WIDTH, 1280);
-	capture.set(CAP_PROP_FRAME_HEIGHT, 720);
+	capture.set(CAP_PROP_FRAME_WIDTH, 1920);
+	capture.set(CAP_PROP_FRAME_HEIGHT, 1080);
 	capture.set(CAP_PROP_AUTO_EXPOSURE, 0);
 	capture.set(CAP_PROP_AUTOFOCUS, 1);
 	capture.set(CAP_PROP_AUTO_WB, 0);
@@ -93,7 +113,6 @@ int main(int argc, const char** argv) {
 	while (true) {
 
 		Clock::time_point start = Clock::now();
-		//-----Get buffer of skin pixels with a decent length (300 frames)
 		if (capture.read(newFrame)) {
 			if (!newFrame.empty()) {
 
@@ -162,10 +181,10 @@ int main(int argc, const char** argv) {
 				}
 			}
 		}
-
+		
 		Clock::time_point end = Clock::now();
 		auto ms = chrono::duration_cast<milliseconds>(end - start);
-
+		
 		myFile << ms.count() << endl;
 
 		//exit condition is when the keyboard is pressed anywhere.

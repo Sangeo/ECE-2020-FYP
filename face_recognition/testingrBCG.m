@@ -75,6 +75,6 @@ ylabel('PSD');
 
 fprintf('the average heart rate measured was: %.2f \n',(60*fVals(loc)))
 
-bandpass(x,[0.8,2.5],fs)
+[f,d] = bandpass(x,[0.8,3],fs)
 
 

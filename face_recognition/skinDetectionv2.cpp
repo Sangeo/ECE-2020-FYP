@@ -1,12 +1,33 @@
-#include "opencv_helper.h"
+#include "opencv2/objdetect.hpp"
+#include "opencv2/video/tracking.hpp"
+#include "opencv2/highgui.hpp"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/videoio.hpp"
+#include "opencv2/core/matx.hpp"
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <vector>
+#include <future>
+#include <deque>
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include "fftw3.h"
+#include "Python.h"
+#include "matplotlibcpp.h"
+#include <algorithm>
+#include <tuple>
 
 cv::CascadeClassifier face_cascade;
 using namespace cv;
-
 std::deque<double> topLeftX;
 std::deque<double> topLeftY;
 std::deque<double> botRightX;
 std::deque<double> botRightY;
+
+typedef std::chrono::high_resolution_clock Clock;
+typedef std::chrono::milliseconds milliseconds;
 
 cv::Mat detectAndDisplay(
 	cv::Mat frame);
@@ -18,7 +39,8 @@ cv::Rect findPoints(
 
 cv::Mat skinDetection(
 	cv::Mat frameC,
-	cv::Rect originalFaceRect);
+	cv::Rect originalFaceRect,
+	cv::Rect stuff);
 
 int main(int argc, const char** argv) {
 
@@ -32,22 +54,13 @@ int main(int argc, const char** argv) {
 
 	//-- 1. Load the cascades
 	cv::String face_cascade_name = cv::samples::findFile(parser.get<cv::String>("face_cascade"));
-	if (!face_cascade.load(face_cascade_name)) {
+	if (!face_cascade.load(face_cascade_name)) {          
 		std::cout << "--(!)Error loading face cascade\n";
 		return -1;
 	};
 
-	cv::VideoCapture capture(1);
-	cv::VideoCapture capture2(0);
+	cv::VideoCapture capture(0);
 
-	if (!capture.isOpened()) {
-		std::cout << "First camera not detected, trying for second one... " << std::endl;
-		if (!capture2.isOpened()) {
-			std::cout << "Second camera not detected as well, exiting program..." << std::endl;
-			return -1;
-		}
-		return -1;
-	}
 	capture.set(cv::CAP_PROP_FPS, 30);
 	capture.set(cv::CAP_PROP_FRAME_WIDTH, 1920);
 	capture.set(cv::CAP_PROP_FRAME_HEIGHT, 1080);
@@ -60,6 +73,7 @@ int main(int argc, const char** argv) {
 
 	Mat frame;
 	while (true) {
+		Clock::time_point start = Clock::now();
 		if (capture.read(frame)) {
 			Mat skinFrame = detectAndDisplay(frame);
 			if (!skinFrame.empty())
@@ -67,9 +81,13 @@ int main(int argc, const char** argv) {
 			Mat resizedFrame;
 			resize(frame.clone(), resizedFrame, cv::Size(), scaleFactor, scaleFactor);
 			if (!resizedFrame.empty())
-				imshow("Frame", resizedFrame);
+				//imshow("Frame", resizedFrame);
 			if (cv::waitKey(1) > 0)break;
 		}
+		Clock::time_point end = Clock::now();
+		auto ms = std::chrono::duration_cast<milliseconds>(end - start);
+		double captureTime = ms.count() / 1000.0;
+		std::cout << "Skin/ROI Detection Took: " << captureTime << std::endl;
 
 	}
 
@@ -133,10 +151,10 @@ Mat detectAndDisplay(Mat frame) {
 			}
 
 			Rect tempRect(tempTL, tempBR);
-			rectangle(frameClone, tempRect, Scalar(0, 0, 255), 1, LINE_4, 0);
+			//rectangle(frameClone, tempRect, Scalar(0, 0, 255), 1, LINE_4, 0);
 
 
-			trueROI = skinDetection(frameClone, tempRect);
+			trueROI = skinDetection(frameClone, tempRect, faceROI);
 		}
 	}
 	/*imshow("Detected Face", frameClone);
@@ -250,7 +268,7 @@ Rect findPoints(std::vector<Rect> faces, int bestIndex, double scaleFactor) {
 	morphologyex (opening), clearing out false positives outside the face
 
 */
-Mat skinDetection(Mat frameC, Rect originalFaceRect) {
+Mat skinDetection(Mat frameC, Rect originalFaceRect,Rect actualRegion) {
 
 	Mat frameFace = frameC(originalFaceRect).clone();
 	//shrink the region of interest to a face centric region
@@ -274,13 +292,38 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 		tempBR.x = originalFaceRect.br().x;
 		std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
 	}
-	tempBR.y = brY - (brY - tlY) * 0.1;
+	tempBR.y = brY - (brY - tlY) * 0.35;
 	if (tempBR.y >= frameFace.rows) {
 		tempBR.y = originalFaceRect.br().y;
 		std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;
 	}
-
 	Rect tempRect(tempTL, tempBR);
+
+	tlX = actualRegion.tl().x;
+	tlY = actualRegion.tl().y;
+	brX = actualRegion.br().x;
+	brY = actualRegion.br().y;
+
+	tempTL.x = tlX;
+	if (tempTL.x <= 0) {
+		tempTL.x = actualRegion.tl().x;
+	}
+	tempTL.y = tlY;
+	if (tempTL.y <= 0) {
+		tempTL.y = actualRegion.tl().y;
+	}
+	tempBR.x = brX;
+	if (tempBR.x >= brX) {
+		tempBR.x = actualRegion.br().x;
+		std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
+	}
+	tempBR.y = brY - (brY - tlY) * 0.35;
+	if (tempBR.y >= brY) {
+		tempBR.y = actualRegion.br().y;
+		std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;
+	}
+	Rect tempRect2(tempTL, tempBR);
+	
 	frameFace = frameFace(tempRect);
 
 	Mat yccFace, imgFilter;
@@ -309,9 +352,9 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	cv::minMaxLoc(cr_hist, &cr_min, &cr_max, &cr_min_loc, &cr_max_loc);
 	cv::minMaxLoc(cb_hist, &cb_min, &cb_max, &cb_min_loc, &cb_max_loc);
 	
-	std::cout << "y_max location: " << y_max_loc.y
+	/*std::cout << "y_max location: " << y_max_loc.y
 		<< " cr_max location: " << cr_max_loc.y
-		<< " cb_max location: " << cb_max_loc.y << std::endl;
+		<< " cb_max location: " << cb_max_loc.y << std::endl;*/
 
 	int min_cr , min_cb , max_cr , max_cb ;
 	min_cr = cr_max_loc.y - 10;
@@ -334,6 +377,13 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	frameFace.copyTo(skin, imgFilter);
 	//imshow("SKIN", skin);
 	imshow("imgFilter raw", imgFilter);
+	Mat frameCC;
+	frameCC = frameC.clone();
+	rectangle(frameCC, originalFaceRect, Scalar(0, 255, 255));
+	//rectangle(frameCC, actualRegion, Scalar(255, 0, 255));
+	rectangle(frameCC, tempRect2, Scalar(255, 0, 255));
+	resize(frameCC, frameCC, cv::Size(), 0.5, 0.5);
+	imshow("ROI Comparison", frameCC);
 	cv::waitKey(1);
 
 	return skin;

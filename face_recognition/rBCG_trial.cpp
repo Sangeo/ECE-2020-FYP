@@ -16,10 +16,15 @@
 #include <iostream>
 #include <stdint.h>
 #include <fstream>
+#include <chrono>
+
 
 using namespace dlib;
 using namespace std;
 using namespace cv;
+
+typedef chrono::high_resolution_clock Clock;
+typedef std::chrono::milliseconds milliseconds;
 
 
 int main(int argc, const char** argv) {
@@ -61,6 +66,7 @@ int main(int argc, const char** argv) {
 	myFile.open("locationData.csv");
 
 	for (;;) {
+		
 		if (capture.read(frame)) {
 			Mat frameClone = frame.clone();
 			Mat procFrame;	//frame used for face recognition

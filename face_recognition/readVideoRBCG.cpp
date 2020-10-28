@@ -1,4 +1,23 @@
-#include "opencv_helper.h"
+#include "opencv2/objdetect.hpp"
+#include "opencv2/video/tracking.hpp"
+#include "opencv2/highgui.hpp"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/videoio.hpp"
+#include "opencv2/core/matx.hpp"
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <vector>
+#include <future>
+#include <deque>
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include "fftw3.h"
+#include "Python.h"
+#include "matplotlibcpp.h"
+#include <algorithm>
+#include <tuple>
 
 using namespace cv;
 using namespace std;
@@ -23,7 +42,7 @@ deque<float> timeVector;
 vector<float> pointsX;
 vector<float> pointsY;
 
-VideoCapture capture("./testing_videos/Vert50cmTest_M79bpm.mp4");
+VideoCapture capture("./testing_videos/IMG_1032.MOV");
 
 int main(int argc, const char** argv) {
 
@@ -59,7 +78,7 @@ int main(int argc, const char** argv) {
 	for (int j = 0; j < nFrames; j++) {
 		if (capture.read(frame)) {
 			if (!frame.empty()) {
-				//cv::flip(frame, frame, 0);
+				cv::flip(frame, frame, 0);
 				frameQ.push_back(frame.clone());
 				//imshow("frame", frame);
 			}
@@ -147,7 +166,7 @@ int main(int argc, const char** argv) {
 			cv::swap(prevGrey, greyFrame);
 			if (cv::waitKey(1) > 0) break;
 
-			char c = (char)waitKey(10);
+			char c = (char)waitKey(1);
 			if (c == ' ') break;
 			switch (c) {
 			case 'r': // re-initialise all points.

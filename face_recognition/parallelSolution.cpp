@@ -17,83 +17,54 @@ int main(int argc, const char** argv) {
 	};
 
 	std::cout << "Please select the correct configuration for your camera: " << std::endl;
-	std::cout << "Enter '1' for High-Resolution, or '2' for Lower Resolution" << std::endl;
+	std::cout << "Enter '1' for 1920*1080, or '2' for 1280*720" << std::endl;
 	int choice;
-	//choice = 1;
 	std::cin >> choice;
 
-	cv::VideoCapture capture(0, CAP_DSHOW); // 1 for other facing webcam
+	cv::VideoCapture capture(1); // 1 for front facing webcam
 	capture.set(CAP_PROP_FPS, 30);
 	capture.set(CAP_PROP_AUTOFOCUS, 1);
 	capture.set(CAP_PROP_AUTO_EXPOSURE, 0);
 	capture.set(CAP_PROP_AUTO_WB, 0);
-
-	std::cout << "CAPTURE BACKEND: " << capture.getBackendName() << std::endl;
-	std::cout << "CAPTURE FOMRAT IS: " << capture.get(CAP_PROP_FORMAT) << std::endl;
-	capture.set(CAP_PROP_FOCUS, cv::CAP_MSMF);
-	std::cout << "CAPTURE FOMRAT IS: " << capture.get(CAP_PROP_FORMAT) << std::endl;
-	capture.set(CAP_PROP_FRAME_WIDTH, 19200); // try for the highest resolution available 
-	capture.set(CAP_PROP_FRAME_HEIGHT, 10800);
-
 	if (choice == 1) {
 		//Get video input/output setup
-		std::cout << "capture get width " << capture.get(CAP_PROP_FRAME_WIDTH) << std::endl;
-		std::cout << "capture get HEIGHT" << capture.get(CAP_PROP_FRAME_HEIGHT) << std::endl;
-		capture.set(CAP_PROP_FRAME_WIDTH, capture.get(CAP_PROP_FRAME_WIDTH));
-		capture.set(CAP_PROP_FRAME_HEIGHT, capture.get(CAP_PROP_FRAME_HEIGHT));
+		capture.set(CAP_PROP_FRAME_WIDTH, 1920);
+		capture.set(CAP_PROP_FRAME_HEIGHT, 1080);
 	}
 	else {
-		//Get video input/output setup
-		std::cout << "capture get width " << capture.get(CAP_PROP_FRAME_WIDTH) << std::endl;
-		std::cout << "capture get HEIGHT" << capture.get(CAP_PROP_FRAME_HEIGHT) << std::endl;
-		capture.set(CAP_PROP_FRAME_WIDTH, capture.get(CAP_PROP_FRAME_WIDTH));
-		capture.set(CAP_PROP_FRAME_HEIGHT, capture.get(CAP_PROP_FRAME_HEIGHT));
+		capture.set(CAP_PROP_FRAME_WIDTH, 1280);
+		capture.set(CAP_PROP_FRAME_HEIGHT, 720);
 	}
+
+	std::cout << "CAPTURE FOMRAT IS: " << capture.get(CAP_PROP_FORMAT) << std::endl;
 
 	//checks to see if the camera works for both methods
 	if (!capture.isOpened()) {
 		capture.release();
-		capture.open(1);
-		if (!capture.isOpened()) {
-			std::cout << "Unable to open the camera device" << std::endl;
-			return -100;
-		}
+		capture.open(0);
 	}
+	//capture.set(CAP_PROP_FOURCC, ('D', 'I', 'V', 'X'));
+
+	Mat frame;
+	std::deque<Mat> frameQ;
+	Mat SRResult;
+
 	int numFrames; //15 seconds worth of frames
 	const int FPS = capture.get(CAP_PROP_FPS);
 	const int msPerFrame = 33;
 
 	std::cout << "Frames per second according to capture.get(): " << FPS << std::endl;
-
-	std::ofstream myfile;
-	myfile.open("CombiResults.csv");
-	myfile << "trial number" << ";" << "rPPG_HREst" << ";" << "rBCG_HREst" << std::endl;
-	std::ofstream myfile2;
-	myfile2.open("rBCG_RawSignals.csv");
-	Mat frame;
-	std::deque<Mat> frameQ;
-	Mat SRResult;
-
-
-	Rect rBCG_ROI;
-	Mat skinFrame;
-	std::vector<Rect> rBCG_ROI_Queue;
-	std::deque<Mat> skinFrameQ;
-
 	bool recording = true;
 	bool processing = false;
 	bool initialising = true;
 	bool plotLegends = true;
 	bool firstRecording = true;
+	bool run = true; //state of the system
+
 	//Live-plotting (non-blocking operation of plotting)
-	bool plottingMode = true;
-	if (plottingMode) {
-		plt::figure_size(1000, 800);
-		plt::show(false);
-	}
-	bool run = true;
-	int trialNumber = 0;
-	double ground_HREst = 0.0;
+	plt::figure_size(1000, 800);
+	plt::show(false);
+
 	double rPPG_HREst = 0.0;
 	double rBCG_HREst = 0.0;
 
@@ -113,24 +84,18 @@ int main(int argc, const char** argv) {
 		cv::Mat frame;
 		if (recording && !processing) {
 			if (initialising) {
-				numFrames = 30 * 4;
+				numFrames = 33 * 5;
 			}
 			else {
-				numFrames = 30 * 15;
+				numFrames = 33 * 15;
 			}
-
-			Clock::time_point start = Clock::now();
-			std::chrono::duration<double, std::milli> ms;
-
 			for (int i = 0; i < numFrames; i++) {
-
+				Clock::time_point start = Clock::now();
 				if (capture.read(frame)) {
-					Clock::time_point frameTime = Clock::now();
-					ms = frameTime - start;
-					start = frameTime;
 					frameQ.push_back(frame.clone());
 				}
-				else throw 10;
+				Clock::time_point end = Clock::now();
+				auto ms = std::chrono::duration_cast<milliseconds>(end - start);
 				double captureTime = ms.count() / 1000.0;
 				if (!frame.empty()) {
 					double scaleFactor;
@@ -143,7 +108,7 @@ int main(int argc, const char** argv) {
 
 					if (initialising) {
 						cv::putText(frame, "Initialising", cv::Point(15, 70),
-							cv::FONT_HERSHEY_SIMPLEX, 1.2, cv::Scalar(255, 255, 255), 2);
+							cv::FONT_HERSHEY_SIMPLEX, 1.5, cv::Scalar(255, 255, 255), 2);
 						Mat resizedFrame;
 						cv::resize(frame, resizedFrame, cv::Size(), scaleFactor, scaleFactor);
 						if (!resizedFrame.empty())
@@ -208,7 +173,7 @@ int main(int argc, const char** argv) {
 					timeVec.push_back(ms.count());
 				}
 
-				if (timeVec.size() > numFrames) {
+				if (timeVec.size() >= numFrames) {
 					//timeVec will continuously be replaced with newer values 
 					assert(!timeVec.empty());
 					timeVec.erase(timeVec.begin());
@@ -237,15 +202,18 @@ int main(int argc, const char** argv) {
 			}
 			else {
 				firstRecording = false;
-				trialNumber++;
 
+				Rect rBCG_ROI;
+				Mat skinFrame;
+				std::vector<Rect> rBCG_ROI_Queue;
+				std::deque<Mat> skinFrameQ;
 				Clock::time_point start = Clock::now();
 				std::tie(skinFrameQ, rBCG_ROI_Queue) = detectAndDisplay(frameQ, numFrames, choice);
 				Clock::time_point end = Clock::now();
 				auto ms = std::chrono::duration_cast<milliseconds>(end - start);
 				double captureTime = ms.count() / 1000.0;
 				std::cout << "Skin/ROI Detection Took: " << captureTime << std::endl;
-				
+
 				start = Clock::now();
 				// Spatial Rotation Method
 				std::vector<double> filSig_rPPG, rawSig_rPPG, rPPG_time;
@@ -254,59 +222,20 @@ int main(int argc, const char** argv) {
 				end = Clock::now();
 				ms = std::chrono::duration_cast<milliseconds>(end - start);
 				captureTime = ms.count() / 1000.0;
-				std::cout << "rPPG Detection Took: " << captureTime << " seconds " << std::endl;
+				std::cout << "Skin/ROI Detection Took: " << captureTime << " seconds " << std::endl;
 
 				Clock::time_point start1 = Clock::now();
 				// KLT Optical Flow Method
 				std::vector<double> filSig_rBCG, rawSig_rBCG, rBCG_time;
-				std::tie(filSig_rBCG, rawSig_rBCG, rBCG_time) = KLTEstimate(frameQ, rBCG_ROI_Queue, numFrames);
+				std::tie(filSig_rBCG, rawSig_rBCG, rBCG_time, rBCG_HREst) = KLTEstimate(frameQ, rBCG_ROI_Queue, numFrames);
 
 				Clock::time_point end1 = Clock::now();
 				auto ms1 = std::chrono::duration_cast<milliseconds>(end1 - start1);
 				double captureTime2 = ms1.count() / 1000.0;
 				std::cout << "KLT Estimation took around: " << captureTime2 << " seconds " << std::endl;
 
-				std::vector<double> v, ff;
-				std::vector<double> v_, ff_;
-				//std::tie(v, ff) = calcPSD(rawSig_rBCG, numFrames);
-				int rBCGSize = filSig_rBCG.size();
-				std::tie(v_, ff_) = calcPSD(filSig_rBCG, rBCGSize);
-
-				int temp_max_loc = 0;
-				double temp_max = 0.0;
-				for (int i = 0; i < v_.size(); i++) {
-					//Ignoring high energy coefficients at the start of the bandpass filter
-					//Ask James if there's a way to do this.
-					if ((v_[i] > temp_max) && (ff_[i] > 1.1)) {
-						temp_max_loc = i;
-						temp_max = v_[i];
-						std::cout << "max freq:" << ff_[i] << "max val: " << temp_max << std::endl;
-					}
-				}
-				rBCG_HREst = ff_[temp_max_loc] * 60; //bpm estimation for rBCG
-				std::cout << "rBCG - Estimated heart rate using FFT: " << rBCG_HREst << std::endl;
-
-
-				if (DEBUG_MODE2) {
-					cv::destroyWindow("Detected Frame");
-					cv::destroyWindow("skinFrame");
-				}
-
-				/*std::cout << "Please enter the average reading for this trial:  ... " << std::endl;
-				std::cin >> ground_HREst;
-				myfile << trialNumber << ";" << rPPG_HREst << ";" << rBCG_HREst << ";" << ground_HREst << std::endl;*/
-				//myfile << trialNumber << ";" << rPPG_HREst << ";" << 80 << ";" << ground_HREst << std::endl;
-
-				/*for (int x = 0; x < rPPG_time.size(); x++) {
-					std::cout << "time: " << rPPG_time[x] << std::endl;
-				}*/
-				for (int q = 0; q < rBCG_time.size(); q++) {
-					myfile2 << rBCG_time[q] << ";" << rawSig_rBCG[q] << ";" << std::endl;
-				}
-
-
 				// Plotting relevant figures
-				if (!filSig_rPPG.empty() && plottingMode) {
+				if (!filSig_rPPG.empty()) {
 					plt::subplot(2, 1, 1);
 					plt::plot(rPPG_time, rawSig_rPPG, { {"color","blue"},{"label","Raw rPPG Signal"} });
 					plt::plot(rPPG_time, filSig_rPPG, { {"color","darkorchid"},{"label","Filtered rPPG Signal"} });
@@ -315,39 +244,34 @@ int main(int argc, const char** argv) {
 					plt::ylabel("Measured Rotation");
 
 				}
-				if (plotLegends && plottingMode) {
+				if (plotLegends) {
 					plt::legend();
 				}
 
-				if (!filSig_rBCG.empty() && plottingMode) {
+				if (!filSig_rBCG.empty()) {
 					plt::subplot(2, 1, 2);
 					plt::plot(rBCG_time, rawSig_rBCG, { {"color", "red"}, {"label","Raw rBCG Signal"} });
 					plt::plot(rBCG_time, filSig_rBCG, { {"color", "black"}, {"label","Filtered rBCG Signal"} });
 					plt::xlabel("Time (seconds)");
-					plt::ylabel("Signal estimation");
-					//plt::subplot(2, 2, 3);
-					//plt::plot(ff, v, { {"color", "red"}, {"label","Raw rBCG Spectrum"} });
-					//plt::plot(ff_, v_, { {"color", "purple"}, {"label","Filtered rBCG Spectrum"} });
-					//plt::xlabel("Frequency (Hz)");
-					//plt::ylabel("Signal Power");
-
+					plt::ylabel("nominal displacement (pixels)");
 
 				}
-				if (plotLegends && plottingMode) {
+				if (plotLegends) {
 					plt::legend();
 					plotLegends = false;
 				}
 
 				skinFrameQ.clear(); // clear out the skinFrameQ to save RAM
-				rBCG_ROI_Queue.clear();
 				firstStride = true; // reset the stride starting point for rPPG 
 			}
 
-			if (plottingMode) {
-				plt::draw();
-				plt::pause(0.001);
-				plt::save("plot.pdf");
+			if (DEBUG_MODE2) {
+				cv::destroyWindow("Detected Frame");
+				cv::destroyWindow("skinFrame");
 			}
+			plt::draw();
+			plt::pause(0.001);
+			plt::save("plot.pdf");
 
 			frameQ.clear();
 			//handover to recording
@@ -362,16 +286,13 @@ int main(int argc, const char** argv) {
 		}
 	}
 
-	if (plottingMode) {
-		plt::draw();
-		plt::pause(0.001);
-		plt::save("plot.pdf");
-	}
+	plt::draw();
+	plt::pause(0.001);
+	plt::save("plot.pdf");
 
 	std::cout << "the program has stopped" << std::endl;
 
 	frameQ.clear();
 	capture.release();
 	return 0;
-
 }

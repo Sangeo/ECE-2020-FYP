@@ -26,7 +26,7 @@ typedef std::chrono::high_resolution_clock Clock;
 typedef std::chrono::milliseconds milliseconds;
 
 const bool DEBUG_MODE = false;
-const bool DEBUG_MODE2 = true;
+const bool DEBUG_MODE2 = false;
 
 std::deque<double> topLeftX;
 std::deque<double> topLeftY;
@@ -85,6 +85,50 @@ const double sos_matrix[12][6] = {
 	{ 0.461489552066884, -0.322599196669853, 0.461489552066884, 1, -1.16218727318019, 0.441359420631550 },
 	{ 0.299969123764612, -0.599764553627771, 0.299969123764612, 1, -1.73181537720060, 0.752138831145407 },
 	{ 0.299969123764612, 0.349792836547195, 0.299969123764612, 1, -1.08728905725033, 0.313519738807378 } };
+
+/*	'IIR Digital Filter (real)                              '
+	'-------------------------                              '
+	'Number of Sections  : 17                               '
+	'Stable              : Yes                              '
+	'Linear Phase        : No                               '
+	'                                                       '
+	'Design Method Information                              '
+	'Design Algorithm : Chebyshev type II                   '
+	'                                                       '
+	'Design Options                                         '
+	'Match Exactly : stopband                               '
+	'                                                       '
+	'Design Specifications                                  '
+	'Sample Rate            : 30 Hz                         '
+	'Response               : Bandpass                      '
+	'Specification          : Fst1,Fp1,Fp2,Fst2,Ast1,Ap,Ast2'
+	'Second Passband Edge   : 4 Hz                          '
+	'First Stopband Edge    : 400 mHz                       '
+	'First Stopband Atten.  : 45 dB                         '
+	'Second Stopband Edge   : 4.2 Hz                        '
+	'Passband Ripple        : 1 dB                          '
+	'Second Stopband Atten. : 45 dB                         '
+	'First Passband Edge    : 700 mHz                       '*/
+const int FILTER_SECTIONS_2 = 17;
+
+const double sos_matrix2[17][6] =
+{ {0.940366323, -1.862774655, 0.940366323, 1, -1.299740364, 0.967078909},
+{ 0.940366323, -1.195268478	,0.940366323,1, -1.972845695,0.99360238 },
+{ 0.918599724, -1.820541289	,0.918599724,1, -1.232519133,0.899884024 },
+{ 0.918599724, -1.138679916	,0.918599724,1, -1.960890165,0.980667121 },
+{ 0.891360127, -1.768235451	,0.891360127,1, -1.135220512,0.82340388 },
+{ 0.891360127, -1.042363165	,0.891360127,1, -1.949143543,0.967142085 },
+{ 0.85524642 ,-1.698907786,	0.85524642	,1, -0.997765752,0.728069166 },
+{ 0.85524642, -0.891810875,	0.85524642	,1, -1.937124601,0.952644804 },
+{ 0.805827276, -1.603417843	,0.805827276,1, -0.808305984,0.603484961 },
+{ 0.805827276 ,-0.66265824	,0.805827276,1, -1.924522282,0.937042602 },
+{ 0.738392147, -1.471891246	,0.738392147,1, -1.911450164,0.920745389 },
+{ 0.738392147, -0.319565142	,0.738392147,1, -0.559761346,0.441968437 },
+{ 0.652480987, -1.302813134	,0.652480987,1, -1.898898218,0.905191294 },
+{0.652480987,0.16888325,	0.652480987	,1 ,-0.26891347	,0.251218407},
+{0.565179381,-1.129858484	,0.565179381,1 ,-1.889175876,0.893274654},
+{0.565179381,0.742562256,	0.565179381	,1 ,-0.007319884,0.076933969},
+{0.524257303, 0				,-0.524257303,1 ,-0.891236583 ,-0.048514606} };
 
 // End Filter Design Section
 
@@ -447,10 +491,18 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	//Possible implementation which can be useful would be medianblur to further smoothen the skin mask
 
 	Mat skin;
+	
 	//return our detected skin values
 	frameFace.copyTo(skin, imgFilter);
 	if (DEBUG_MODE2) {
+		Mat frameCC;
+		frameC.copyTo(frameCC);
+		double sF = 1.0 / 2.0;
 		imshow("skinFrame", skin);
+		rectangle(frameCC, originalFaceRect, Scalar(255, 0, 255));
+		rectangle(frameCC, tempRect, Scalar(255, 0, 0));
+		resize(frameCC, frameCC, cv::Size(), sF, sF);
+		imshow("frame ROI", frameCC);
 		cv::waitKey(1);
 	}
 
@@ -464,100 +516,108 @@ Mat skinDetection(Mat frameC, Rect originalFaceRect) {
 	Input: current frame (raw)
 	Output: current skin (raw);
 */
-std::tuple<Mat, Rect> detectAndDisplay(Mat frame, int choice) {
+std::tuple<std::deque<Mat>, std::vector<Rect>> detectAndDisplay(std::deque<Mat> frameQ, int numFrames, int choice) {
 
-	Mat frameClone = frame.clone();
-	Mat procFrame;
-	Mat frameGray;
-	std::vector<Rect> faces;
-	std::vector<int> numDetections;
+	std::deque<Mat> skin_FrameQ;
+	std::vector<Rect> rBCG_ROI_Q;
 
-	//downsizing image before processing
-	double scaleFactor;
-	if (choice == 1) {
-		scaleFactor = 1.0 / 7.0;
-	}
-	else {
-		scaleFactor = 1.0 / 3.0;
-	}
-	resize(frameClone, procFrame, cv::Size(), scaleFactor, scaleFactor);
-	//convert the image into a grayscale image which will be equalised for face detection
-	cvtColor(procFrame, frameGray, COLOR_BGR2GRAY); // convert the current frame into grayscale
-	equalizeHist(frameGray, frameGray); // equalise the grayscale img
-	//use the Haar cascade classifier to process the image with training files.
-	face_cascade.detectMultiScale(frameGray.clone(), faces, numDetections, 1.1, 3, 0 | CASCADE_SCALE_IMAGE, Size(30, 30));
-	//finds the best face possible on the current frame
-	int bestIndex = std::distance(
-		numDetections.begin(),
-		std::max_element(numDetections.begin(), numDetections.end()));
+	for (int i = 0; i < numFrames; i++) {
+		Mat frameClone = frameQ[i];
+		Mat procFrame;
+		Mat frameGray;
+		std::vector<Rect> faces;
+		std::vector<int> numDetections;
 
-	Rect rBCGFocus;
-	Rect faceROI;
-	Mat rPPGROI;
+		//downsizing image before processing
+		double scaleFactor;
+		if (choice == 1) {
+			scaleFactor = 1.0 / 6.0;
+		}
+		else {
+			scaleFactor = 1.0 / 3.0;
+		}
+		resize(frameClone, procFrame, cv::Size(), scaleFactor, scaleFactor);
+		//convert the image into a grayscale image which will be equalised for face detection
+		cvtColor(procFrame, frameGray, COLOR_BGR2GRAY); // convert the current frame into grayscale
+		equalizeHist(frameGray, frameGray); // equalise the grayscale img
+		//use the Haar cascade classifier to process the image with training files.
+		face_cascade.detectMultiScale(frameGray.clone(), faces, numDetections, 1.1, 3, 0 | CASCADE_SCALE_IMAGE, Size(30, 30));
+		//finds the best face possible on the current frame
+		int bestIndex = std::distance(
+			numDetections.begin(),
+			std::max_element(numDetections.begin(), numDetections.end()));
 
-	if (!faces.empty()) {
-		//find the faceROI using a moving average to ease the noise out	
-		faceROI = findPoints(faces, bestIndex, scaleFactor);
+		Rect rBCGFocus;
+		Rect faceROI;
+		Mat rPPGROI;
 
-		if (!faceROI.empty()) {
+		if (!faces.empty()) {
+			//find the faceROI using a moving average to ease the noise out	
+			faceROI = findPoints(faces, bestIndex, scaleFactor);
 
-			// finding suitable region for rBCG feature extraction
-			Point2i tempTL, tempBR;
-			int tlX, tlY, brX, brY;
-			tlX = faceROI.tl().x;
-			tlY = faceROI.tl().y;
-			brX = faceROI.br().x;
-			brY = faceROI.br().y;
+			if (!faceROI.empty()) {
 
-			tempTL.x = tlX + (brX - tlX) * 0.2;
-			if (tempTL.x <= 0) {
-				tempTL.x = faceROI.tl().x;
+				// finding suitable region for rBCG feature extraction
+				Point2i tempTL, tempBR;
+				int tlX, tlY, brX, brY;
+				tlX = faceROI.tl().x;
+				tlY = faceROI.tl().y;
+				brX = faceROI.br().x;
+				brY = faceROI.br().y;
+
+				tempTL.x = tlX + (brX - tlX) * 0.15;
+				if (tempTL.x <= 0) {
+					tempTL.x = faceROI.tl().x;
+				}
+				tempTL.y = tlY + (brY - tlY) * 0.45;
+				if (tempTL.y <= 0) {
+					tempTL.y = faceROI.tl().y;
+				}
+				tempBR.x = brX - (brX - tlX) * 0.15;
+				if (tempBR.x >= frameClone.cols) {
+					tempBR.x = faceROI.br().x;
+					std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
+				}
+				tempBR.y = brY - (brY - tlY) * 0.001;
+				if (tempBR.y >= frameClone.rows) {
+					tempBR.y = faceROI.br().y;
+					std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;
+				}
+
+				rBCGFocus = Rect(tempTL, tempBR);
+
+				// finding appropriate section for skin analysis;
+				Point2i skinTL, skinBR;
+				skinTL.x = tlX + (brX - tlX) * 0.1;
+				if (skinTL.x <= 0) {
+					skinTL.x = faceROI.tl().x;
+				}
+				skinTL.y = tlY + (brY - tlY) * 0.05; //basically not changed
+				if (skinTL.y <= 0) {
+					skinTL.y = faceROI.tl().y;
+				}
+				skinBR.x = brX - (brX - tlX) * 0.1;
+				if (skinBR.x >= frameClone.cols) {
+					skinBR.x = faceROI.br().x;
+					std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
+				}
+				skinBR.y = brY - (brY - tlY) * 0.35;
+				if (skinBR.y >= frameClone.rows) {
+					skinBR.y = faceROI.br().y;
+					std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;
+				}
+
+				Rect tempRect(skinTL, skinBR);
+				//rectangle(frameClone, tempRect, Scalar(0, 0, 255), 1, LINE_4, 0);
+				rPPGROI = skinDetection(frameClone, tempRect); //skin detection conducted here
+
+				rBCG_ROI_Q.push_back(rBCGFocus);
+				skin_FrameQ.push_back(rPPGROI);
 			}
-			tempTL.y = tlY + (brY - tlY) * 0.48;
-			if (tempTL.y <= 0) {
-				tempTL.y = faceROI.tl().y;
-			}
-			tempBR.x = brX - (brX - tlX) * 0.2;
-			if (tempBR.x >= frameClone.cols) {
-				tempBR.x = faceROI.br().x;
-				std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
-			}
-			tempBR.y = brY - (brY - tlY) * 0.05;
-			if (tempBR.y >= frameClone.rows) {
-				tempBR.y = faceROI.br().y;
-				std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;
-			}
-
-			rBCGFocus = Rect(tempTL, tempBR);
-
-			// finding appropriate section for skin analysis;
-			Point2i skinTL, skinBR;
-			skinTL.x = tlX + (brX - tlX) * 0.1;
-			if (skinTL.x <= 0) {
-				skinTL.x = faceROI.tl().x;
-			}
-			skinTL.y = tlY + (brY - tlY) * 0.05; //basically not change
-			if (skinTL.y <= 0) {
-				skinTL.y = faceROI.tl().y;
-			}
-			skinBR.x = brX - (brX - tlX) * 0.1;
-			if (skinBR.x >= frameClone.cols) {
-				skinBR.x = faceROI.br().x;
-				std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
-			}
-			skinBR.y = brY - (brY - tlY) * 0.35;
-			if (skinBR.y >= frameClone.rows) {
-				skinBR.y = faceROI.br().y;
-				std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;
-			}
-
-			Rect tempRect(skinTL, skinBR);
-			//rectangle(frameClone, tempRect, Scalar(0, 0, 255), 1, LINE_4, 0);
-			rPPGROI = skinDetection(frameClone, tempRect); //skin detection conducted here
 		}
 	}
 
-	return std::make_tuple(rPPGROI, rBCGFocus);
+	return std::make_tuple(skin_FrameQ, rBCG_ROI_Q);
 }
 
 /* Function: sosFilter
@@ -618,6 +678,104 @@ std::vector<double> sosFilter(std::vector<double> signal) {
 
 	return output;
 }
+/* Function: sosFilter
+* Uses a predefined IIR Bandpass filter (Cheby-II) to filter the raw signal results obtained from both methods.
+* Input: signal vector raw (common to both methods)
+* Output: filtered signal
+*/
+std::vector<double> sosFilter2(std::vector<double> signal) {
+
+	std::vector<double> output;
+	output.resize(signal.size());
+
+	double** tempOutput = new double* [FILTER_SECTIONS_2];
+	for (int i = 0; i < FILTER_SECTIONS_2; i++)
+		tempOutput[i] = new double[signal.size()];
+	for (int i = 0; i < FILTER_SECTIONS_2; i++) {
+		for (int j = 0; j < signal.size(); j++) {
+			tempOutput[i][j] = 0;
+		}
+	}
+
+	for (int i = 0; i < signal.size(); i++) {
+
+		if (i - 2 < 0) {
+			//std::cout << "skipping some stuff" << std::endl;
+			continue;
+		}
+
+		double b0, b1, b2, a1, a2;
+		double result;
+		//for each section
+		for (int j = 0; j < FILTER_SECTIONS_2; j++) {
+
+			b0 = sos_matrix2[j][0];
+			b1 = sos_matrix2[j][1];
+			b2 = sos_matrix2[j][2];
+			a1 = sos_matrix2[j][4];
+			a2 = sos_matrix2[j][5];
+
+			if (j == 0) {
+				result = b0 * signal[i] + b1 * signal[i - 1] + b2 * signal[i - 2]
+					- a1 * tempOutput[j][i - 1] - a2 * tempOutput[j][i - 2];
+				tempOutput[j][i] = result;
+			}
+			else {
+				result = b0 * tempOutput[j - 1][i] + b1 * tempOutput[j - 1][i - 1] + b2 * tempOutput[j - 1][i - 2]
+					- a1 * tempOutput[j][i - 1] - a2 * tempOutput[j][i - 2];
+				tempOutput[j][i] = result;
+			}
+
+		}
+
+	}
+	for (int x = 0; x < signal.size(); x++) {
+		output[x] = tempOutput[FILTER_SECTIONS_2 - 1][x];
+		//std::cout << "output: " << output[x] << std::endl;
+	}
+
+	return output;
+}
+
+
+std::tuple<std::vector<double>, std::vector<double>>
+calcPSD(std::vector<double> sig, int numFrames) {
+	//Pre-filtering FFT and PLOTTING ~~~~~~~~~~~~~~~~~~~~~
+	//preallocate memory
+	double* in = (double*)fftw_malloc(sizeof(double) * numFrames);
+	fftw_complex* out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * numFrames);
+
+	for (int i = 0; i < numFrames; i++) {
+		double sig_ = sig[i];
+		in[i] = sig_;
+	}
+
+	fftw_plan fftPlan = fftw_plan_dft_r2c_1d(numFrames, in, out, FFTW_ESTIMATE);
+	fftw_execute(fftPlan);
+
+	std::vector<double> v, ff;
+	double sampRate = 30;
+	for (int i = 0; i <= ((numFrames / 2) - 1); i++) {
+		double a, b;
+		a = sampRate * i / numFrames;
+		//Here I have calculated the y axis of the spectrum in dB
+		b = (20 * log(sqrt(out[i][0] * out[i][0] + out[i][1] * out[i][1]))) / numFrames;
+
+		/*if (i == 0) {
+			b = b * -1.0;
+		}*/
+
+		v.push_back((double)b);
+		ff.push_back((double)a);
+	}
+
+	fftw_destroy_plan(fftPlan);
+	fftw_free(in);
+	fftw_free(out);
+
+	return std::make_tuple(v, ff);
+}
+
 
 // rPPG Function Design Section
 /* Function: spatialRotation
@@ -633,7 +791,7 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 	std::deque<Mat> eigVecArray; // This will contain the eigenvectors
 	std::vector<Mat> SRDash;
 	// for each frame in the queue 
-	for (size_t i = 0; i < capLength; i++) {
+	for (int i = 0; i < capLength; i++) {
 		//our skinFrames are queued in a deque, which can be accessed using a for loop
 		//this retrieves a single skin frame from the queue, but this will contain many zeros
 		Mat temp = skinFrameQ.front().clone();
@@ -824,7 +982,8 @@ Mat spatialRotation(std::deque<Mat> skinFrameQ, Mat longTermPulseVector, int cap
 * - Raw Signal (vector<double>)
 * - Filtered Signal (vector<double>)
 */
-std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, double> rPPGEstimate(Mat SRResult, int numFrames) {
+std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, double>
+rPPGEstimate(Mat SRResult, int numFrames) {
 
 	std::vector <double> x, raw_rPPG_signal;
 	for (int i = 0; i < numFrames; i++) {
@@ -837,7 +996,7 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, double
 		rPPGSignal.push_back(sig);
 		timeVecOutput.push_back(t);
 	}
-	
+
 	std::vector<double> fOut = sosFilter(raw_rPPG_signal);
 
 	std::vector <double> filtered_rPPG_signal;
@@ -853,7 +1012,7 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, double
 	//peak distance calculation
 	std::vector<double> diffTime;
 	for (size_t i = 0; i < peakLocs.size(); i++) {
-		if (peakLocs[i] != numFrames) {
+		if (peakLocs[i] != numFrames && x[peakLocs[i]] > 1) {
 			diffTime.push_back(x[peakLocs[i]]);
 		}
 		else {
@@ -867,7 +1026,7 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, double
 	std::cout << "rPPG - Average time between peaks: " << mean_diffTime << std::endl;
 	std::cout << "rPPG - Estimated heart rate: " << 60.0 / mean_diffTime << std::endl;
 	double heartRate = 60.0 / mean_diffTime; //update the current heart rate estimate
-	
+
 	if (mean_diffTime < 0) {
 		for (size_t i = 0; i < peakLocs.size(); i++) {
 			std::cout << "time: " << x[peakLocs[i]] << "peak location at: " << peakLocs[i] << std::endl;
@@ -892,39 +1051,76 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, double
 * - The unique time vector
 * - Estimated heart rate (double)
 */
-std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, double>
+std::tuple<std::vector<double>, std::vector<double>, std::vector<double>>
 KLTEstimate(std::deque<Mat> frameQ, std::vector<Rect> ROI_queue, int numFrames) {
-	const int POINTS_UPPER_LIM = 10;
+
+	const int POINTS_UPPER_LIM = 20;
 	double** BCGResult = new double* [numFrames];
 	for (int i = 0; i < numFrames; i++) {
 		BCGResult[i] = new double[POINTS_UPPER_LIM];
 	}
 
 	//Define a criteria for opticalFlow
-	TermCriteria termCrit(TermCriteria::COUNT + TermCriteria::EPS, 20, 0.03);
+	TermCriteria termCrit(TermCriteria::COUNT + TermCriteria::EPS, 35, 0.05);
 	Size subPixWinSize(10, 10), winSize(31, 31);
 	int MAX_COUNT = 1000;
 	std::vector<Point2f> points[2];
 	bool initialising = true;
 
-	Rect ROI;
-	Mat greyFrame, prevGrey, goldFrame;
+	Mat temp;
+	double scaleFactor = 1.0 / 2.0;
+	Rect ROI, ROI_postInit;
+	Mat greyFrame, prevGrey;
 	bool reinit = false;
 
 	//run after the frame has finished capturing
-	for (size_t id = 0; id < frameQ.size(); id++) {
-		Mat temp = frameQ[id];
-		if (!temp.empty()) {
+	for (int id = 0; id < frameQ.size(); id++) {
+
+		if (!frameQ[id].empty()) {
 			//keep a golden frame
-			temp.copyTo(goldFrame);
-			ROI = ROI_queue[id];
+			if (id < 10) {
+				ROI = ROI_queue[id];
+			}
+			else {
+				ROI_postInit = ROI_queue[id];
+
+				// finding suitable region for rBCG feature extraction
+				Point2i tempTL, tempBR;
+				int tlX, tlY, brX, brY;
+				tlX = ROI_postInit.tl().x;
+				tlY = ROI_postInit.tl().y;
+				brX = ROI_postInit.br().x;
+				brY = ROI_postInit.br().y;
+
+				tempTL.x = tlX - 100;
+				if (tempTL.x <= 0) {
+					tempTL.x = ROI_postInit.tl().x;
+				}
+				tempTL.y = tlY - 100;
+				if (tempTL.y <= 0) {
+					tempTL.y = ROI_postInit.tl().y;
+				}
+				tempBR.x = brX + 100;
+				if (tempBR.x >= frameQ[id].cols) {
+					tempBR.x = ROI_postInit.br().x;
+					std::cout << "tempBR.x is over the frame's allowable limit" << std::endl;
+				}
+				tempBR.y = brY + 100;
+				if (tempBR.y >= frameQ[id].rows) {
+					tempBR.y = ROI_postInit.br().y;
+					std::cout << "tempBR.y is over the frame's allowable limit" << std::endl;
+				}
+
+				ROI = Rect(tempTL, tempBR);
+			}
+
 			//convert to greyscale
-			cv::cvtColor(goldFrame, greyFrame, COLOR_BGR2GRAY);
+			cv::cvtColor(frameQ[id], greyFrame, COLOR_BGR2GRAY);
 
 			if (initialising || reinit) {
 				goodFeaturesToTrack(greyFrame, points[1], MAX_COUNT, 0.01, 10, Mat(), 3, 3, 0, 0.04);
 				cornerSubPix(greyFrame, points[1], subPixWinSize, Size(-1, -1), termCrit);
-
+				reinit = false;
 			}
 			else if (!points[0].empty()) {
 				std::vector<uchar> status;
@@ -942,17 +1138,18 @@ KLTEstimate(std::deque<Mat> frameQ, std::vector<Rect> ROI_queue, int numFrames) 
 					//checks to see if the points are in the ROI of the face, if it is not then we reject it by not keeping it.
 					if (ROI.contains(points[1][i])) {
 						points[1][k++] = points[1][i];
-						circle(temp, points[1][i], 3, Scalar(0, 255, 0), -1, 8);
+						circle(frameQ[id], points[1][i], 3, Scalar(0, 255, 0), -1, 8);
 					}
 					else {
-
 					}
 				}
 				points[1].resize(k);
 				if (points[1].size() > POINTS_UPPER_LIM) {
-					points[1].pop_back();
+					for (int i = 0; i < (points[1].size() - POINTS_UPPER_LIM); i++) {
+						points[1].pop_back();
+					}
 				}
-				else if (points[1].size() == 0) {
+				else if (points[1].empty()) {
 					reinit = true;
 				}
 				else {
@@ -969,44 +1166,38 @@ KLTEstimate(std::deque<Mat> frameQ, std::vector<Rect> ROI_queue, int numFrames) 
 			}
 
 			if (DEBUG_MODE2) {
-				cv::rectangle(temp, ROI, Scalar(0, 255, 0));
+				cv::rectangle(frameQ[id], ROI, Scalar(0, 255, 0));
+				cv::resize(frameQ[id], temp, cv::Size(), scaleFactor, scaleFactor);
+
 				cv::imshow("Detected Frame", temp);
+				if (cv::waitKey(1) > 0) break;
 			}
 			//frameQ.push_back(newFrame.clone());
 			std::swap(points[1], points[0]);
 
 			cv::swap(prevGrey, greyFrame);
-			if (cv::waitKey(1) > 0) break;
 
-			char c = (char)waitKey(10);
-			if (c == ' ') break;
-			switch (c) {
-			case 'r': // re-initialise all points.
-				initialising = true;
-				break;
-			case 'c': // clear all points
-				points[0].clear();
-				points[1].clear();
-				break;
+			//char c = (char)waitKey(1);
+			//if (c == ' ') break;
+			//switch (c) {
+			//case 'r': // re-initialise all points.
+			//	initialising = true;
+			//	break;
+			//case 'c': // clear all points
+			//	points[0].clear();
+			//	points[1].clear();
+			//	break;
 
-			}
+			//}
+
 		}
 	}
-	if (DEBUG_MODE) {
-		for (int x = 0; x < numFrames; x++) {
-			for (int y = 0; y < POINTS_UPPER_LIM; y++) {
-				std::cout << "Row: " << x <<
-					" Col: " << y << " Val: " <<
-					BCGResult[x][y] << std::endl;
-			}
-			std::cout << std::endl;
-		}
-	}
+
 	std::vector<std::vector<double>> resultVector;
 	//for the first few frames, the points may disappear
 	//so if any vector appears to have 0 value, then we ignore these vectors all together
 	// this tells me how much I need to take away from the timeVector
-	int startingNoise = 20;
+	int startingNoise = 10;
 	int p = 0, q = 0;
 	int tempUpperLim = POINTS_UPPER_LIM;
 	bool foundNoise = false;
@@ -1039,42 +1230,54 @@ KLTEstimate(std::deque<Mat> frameQ, std::vector<Rect> ROI_queue, int numFrames) 
 		}
 
 	}
-	//determinantion for average of all signals over a period of time.
-	std::vector<double> t, sig;
+
+	//mean for each point across the entire section is:
+	std::vector<double> pointAvgs;
+	double pointAvg_temp = 0;
+	for (int x = 0; x < tempUpperLim; x++) {
+		pointAvg_temp = std::accumulate(resultVector[x].begin(), resultVector[x].end(), 0.0) / resultVector[x].size();
+		pointAvgs.push_back(pointAvg_temp);
+	}
+
+
+	std::vector<double> t;
 	for (int x = startingNoise + 1; x < numFrames; x++) {
 		double t_ = timeVec[x] / 1000.0;
-		double sig_ = 0;
-		for (int y = 0; y < tempUpperLim; y++) {
-			double temp = resultVector[y][x - (startingNoise + 1)];
-			sig_ += temp;
+		t.push_back(t_);//get timevector for plotting rBCG
+	}
+	//mean subtraction for each point average
+	std::vector<std::vector<double>> sig_lessMean;
+	sig_lessMean.resize(resultVector.size());
+	for (int y = 0; y < tempUpperLim; y++) {
+		double res = 0.0;
+		for (int x = 0; x < resultVector[y].size(); x++) {
+			res = resultVector[y][x] - pointAvgs[y]; //mean subtraction
+			sig_lessMean[y].push_back(res);
 		}
-		sig_ /= tempUpperLim;
-		sig.push_back(sig_);
-		t.push_back(t_);
 
-		rBCGSignal.push_back(sig_);
 	}
+	std::vector<double> sig_avg;
+	for (int x = 0; x < resultVector[0].size(); x++) {
+		double temp = 0.0;
 
-	//finding signal mean
-	double sig_mean = std::accumulate(sig.begin(), sig.end(), 0.0) / sig.size();
-
-	//mean subtracted signal for analysis 
-	std::vector<double> sig_lessMean;
-	for (int i = 0; i < sig.size(); i++) {
-		double temp = sig[i] - sig_mean;
-		sig_lessMean.push_back(temp);
-
-		rBCGSignalFiltered.push_back(temp);
+		for (int y = 0; y < tempUpperLim; y++) {
+			temp += sig_lessMean[y][x];
+		}
+		temp = temp / tempUpperLim;
+		sig_avg.push_back(temp);
 	}
-
 
 	if (DEBUG_MODE) {
-		std::cout << "sig_mean: " << sig_mean << std::endl;
-		std::cout << "t size: " << t.size() << "sig vec size: " << sig_lessMean.size() << std::endl;
+		std::cout << "t size: " << t.size() << "sig vec size: " << sig_avg.size() << std::endl;
 	}
 
 	//Filter the signal with a IIR Butterworth Bandpass Filter
-	std::vector<double> filtSig = sosFilter(sig_lessMean);
+	std::vector<double> filtSig = sosFilter(sig_avg);
+
+	for (int i = 0; i < sig_lessMean.size(); i++) {
+		double temp = filtSig[i];
+		rBCGSignalFiltered.push_back(temp);
+	}
 
 	//peak detection 
 	std::vector<int> peakLocs;
@@ -1083,7 +1286,7 @@ KLTEstimate(std::deque<Mat> frameQ, std::vector<Rect> ROI_queue, int numFrames) 
 	//peak-to-peak distance calculation
 	std::vector<double> diffTime;
 	for (size_t i = 0; i < peakLocs.size(); i++) {
-		if (peakLocs[i] != numFrames && peakLocs[i] != 0) {
+		if (peakLocs[i] != numFrames && peakLocs[i] != 0 && (t[peakLocs[i]] > 0.0)) {
 			diffTime.push_back(t[peakLocs[i]]);
 		}
 		else {
@@ -1094,7 +1297,7 @@ KLTEstimate(std::deque<Mat> frameQ, std::vector<Rect> ROI_queue, int numFrames) 
 	double mean_diffTime = std::accumulate(diffTime.begin(), diffTime.end(), 0.0) / diffTime.size();
 	std::cout << "rBCG - Average time between peaks: " << mean_diffTime << std::endl;
 	double heartRate = 60.0 / mean_diffTime;
-	std::cout << "rBCG - Estimated heart rate: " << heartRate << std::endl;
+	std::cout << "rBCG - Estimated from P2pdetection heart rate: " << heartRate << std::endl;
 
-	return std::make_tuple(filtSig, sig_lessMean, t, heartRate);
+	return std::make_tuple(filtSig, sig_avg, t);
 }
