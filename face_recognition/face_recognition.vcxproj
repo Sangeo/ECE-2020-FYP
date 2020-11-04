@@ -198,22 +198,30 @@
     <ClCompile Include="previous_code\queueFrames.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="previous_code\skinDetectionv2.cpp">
+    <ClCompile Include="skinDetectionv2.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="previous_code\skinDetector.cpp">
+    <ClCompile Include="skinDetector.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="previous_code\spatialRotation_fixing.cpp">
+    <ClCompile Include="spatialRotation.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="previous_code\spatialRotation_FFT.cpp">
+    <ClCompile Include="spatialRotation_fixing.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="spatialRotation_FFT.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Documents\OpenCV\sources\modules\objdetect\include\opencv2\objdetect.hpp" />
     <ClInclude Include="opencv_helper.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shape_predictor_68_face_landmarks.dat">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Media Include="testing_videos\default.mp4">

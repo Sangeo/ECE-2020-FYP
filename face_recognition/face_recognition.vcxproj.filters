@@ -15,7 +15,22 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="skinDetector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\Downloads\dlib-19.21\dlib\all\source.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="spatialRotation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="spatialRotation_fixing.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="spatialRotation_FFT.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="skinDetectionv2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="combinedSolution.cpp">
@@ -66,18 +81,6 @@
     <ClCompile Include="previous_code\readVideoRBCG.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="previous_code\skinDetectionv2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="previous_code\spatialRotation_fixing.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="previous_code\skinDetector.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="previous_code\spatialRotation_FFT.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Documents\OpenCV\sources\modules\objdetect\include\opencv2\objdetect.hpp">
@@ -86,6 +89,9 @@
     <ClInclude Include="opencv_helper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shape_predictor_68_face_landmarks.dat" />
   </ItemGroup>
   <ItemGroup>
     <Media Include="testing_videos\default.mp4" />
