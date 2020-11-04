@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <IncludePath>C:\Users\jerry\boost_1_73_0;C:\Users\jerry\gnuplot-iostream;C:\Users\jerry\Documents\OpenCV\sources\data\haarcascades;C:\Users\jerry\Documents\OpenCV\sources\modules\objdetect\include\;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\jerry\Downloads\fftw-dlls;C:\Users\jerry\AppData\Local\Programs\Python\Python38-32\Lib\site-packages;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\jerry\source\repos\face_recognition\face_recognition\fftw\include;C:\Python38\Lib;C:\Python38\include;$(OPENCV_DIR)\..\..\include;C:\matplotlib\matplotlib-cpp;C:\Python38\Lib\site-packages\numpy\core\include;C:\Users\jerry\Downloads\dlib-19.21</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/openmp %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>C:\Users\jerry\source\repos\face_recognition\face_recognition\fftw\lib;C:\msys64\mingw64\lib;C:\Users\jerry\Downloads\mathsLibrary;$(OPENCV_DIR)\lib;C:\Python38\libs;C:\Users\jerry\Downloads\dlib-build\dlib\Release</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libfftw3-3.lib;opencv_world430.lib;opencv_world430d.lib;libblas.lib;liblapack.lib;python38.lib;dlib19.21.0_release_64bit_msvc1927.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup />
+</Project>
