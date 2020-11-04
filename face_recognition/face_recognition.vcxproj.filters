@@ -18,22 +18,7 @@
     <ClCompile Include="skinDetector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="rBCG_trial.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\Downloads\dlib-19.21\dlib\all\source.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="rBCG_basics.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="opticalFlow.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="rBCG_pointForm.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="queueFrames.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="spatialRotation.cpp">
@@ -42,43 +27,58 @@
     <ClCompile Include="spatialRotation_fixing.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="preRecordingBCG.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="readVideoRBCG.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="compute_fft.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="spatialRotation_FFT.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="filtering_in_c.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="live_rPPG.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="fixedCoeff_Filter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="skinDetectionv2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="livePlot_rPPG.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="live_rBCG.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="liveplot_rBCG.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="combinedSolution.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="parallelSolution.cpp">
+    <ClCompile Include="previous_code\compute_fft.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\filtering_in_c.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\fixedCoeff_Filter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\live_rBCG.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\live_rPPG.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\liveplot_rBCG.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\livePlot_rPPG.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\opticalFlow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\parallelSolution.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\preRecordingBCG.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\queueFrames.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\rBCG_basics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\rBCG_pointForm.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\rBCG_trial.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="previous_code\readVideoRBCG.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
