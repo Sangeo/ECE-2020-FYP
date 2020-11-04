@@ -2,7 +2,8 @@
 %this file wll plot two plots, one of the x raw values against each frame
 %number, and then the next is the one sided power spectral density function
 clear all;
-fileToRead = 'rBCG_Live_analysis.xlsm';
+% fileToRead = 'rBCG_Live_analysis.xlsm';
+fileToRead = 'rBCG_analysis.xlsm';
 M = readmatrix(fileToRead,'Sheet',2);
 x = M(:,3);
 t = M(:,1);
@@ -40,8 +41,8 @@ figure(2)
 hold on;
 
 avgSig = sumSig(:,end)./(cols-2);
-time = time(1:end);
-avgSig = avgSig(1:end);
+time = time(300:end);
+avgSig = avgSig(300:end);
 plot(time,avgSig);
 
 xlabel('time (s)');
@@ -64,4 +65,4 @@ ylabel('PSD');
 
 fprintf('the average heart rate measured was: %.2f \n',(60*fVals(loc)))
 
- bandpass(x,[0.8,2.5],fs)
+ bandpass(x,[0.6,4],fs)
